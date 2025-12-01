@@ -2,26 +2,73 @@
 import os
 from dotenv import load_dotenv
 
-# Загружаем переменные окружения из .env файла
+# Загружаем переменные окружения из .env файла (для локальной разработки)
 load_dotenv()
 
 
-class Config:
+def _get_config_value(key: str, default: str = "") -> str:
+    """
+    Получить значение конфигурации из Streamlit secrets или переменных окружения.
+    
+    Приоритет:
+    1. Streamlit secrets (для Streamlit Cloud)
+    2. Переменные окружения (для локальной разработки)
+    3. Значение по умолчанию
+    """
+    # Пробуем получить из Streamlit secrets (для Streamlit Cloud)
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets'):
+            try:
+                # Вариант 1: st.secrets[key] (прямой доступ)
+                value = st.secrets[key]
+                if value:
+                    return str(value)
+            except (KeyError, TypeError):
+                try:
+                    # Вариант 2: st.secrets.secrets[key] (для secrets.toml)
+                    if hasattr(st.secrets, 'secrets'):
+                        value = st.secrets.secrets[key]
+                        if value:
+                            return str(value)
+                except (KeyError, AttributeError):
+                    pass
+    except (ImportError, RuntimeError):
+        # Streamlit не доступен или не инициализирован
+        pass
+    
+    # Fallback на переменные окружения
+    return os.getenv(key, default)
+
+
+class ConfigMeta(type):
+    """Метакласс для динамической загрузки значений конфигурации."""
+    
+    def __getattr__(cls, name: str):
+        """Динамическая загрузка значений конфигурации."""
+        # Маппинг имен на ключи и значения по умолчанию
+        config_map = {
+            'SUPABASE_URL': ('SUPABASE_URL', ''),
+            'SUPABASE_KEY': ('SUPABASE_KEY', ''),
+            'SUPABASE_DB_URL': ('SUPABASE_DB_URL', ''),
+            'AUTHORTODAY_API_URL': ('AUTHORTODAY_API_URL', 'https://api.author.today'),
+            'AUTHORTODAY_WEB_URL': ('AUTHORTODAY_WEB_URL', 'https://author.today'),
+            'AUTHORTODAY_LOGIN': ('AUTHORTODAY_LOGIN', ''),
+            'AUTHORTODAY_PASSWORD': ('AUTHORTODAY_PASSWORD', ''),
+            'AUTHORTODAY_TOKEN': ('AUTHORTODAY_TOKEN', ''),
+        }
+        
+        if name in config_map:
+            key, default = config_map[name]
+            return _get_config_value(key, default)
+        
+        raise AttributeError(f"'{cls.__name__}' object has no attribute '{name}'")
+
+
+class Config(metaclass=ConfigMeta):
     """Класс для хранения конфигурации приложения."""
     
-    # Supabase настройки
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-    SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL", "")
-    
-    # AuthorToday API настройки
-    AUTHORTODAY_API_URL = os.getenv("AUTHORTODAY_API_URL", "https://api.author.today")
-    AUTHORTODAY_WEB_URL = os.getenv("AUTHORTODAY_WEB_URL", "https://author.today")
-    AUTHORTODAY_LOGIN = os.getenv("AUTHORTODAY_LOGIN", "")  # Логин для авторизации
-    AUTHORTODAY_PASSWORD = os.getenv("AUTHORTODAY_PASSWORD", "")  # Пароль для авторизации
-    AUTHORTODAY_TOKEN = os.getenv("AUTHORTODAY_TOKEN", "")  # Токен (опционально, получается при авторизации)
-    
-    # Путь к папке с книгами
+    # Путь к папке с книгами (статический)
     BOOKS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "books")
     
     @classmethod
@@ -38,6 +85,3 @@ class Config:
             raise ValueError(f"Отсутствуют обязательные переменные окружения: {', '.join(missing)}")
         
         return True
-
-
-

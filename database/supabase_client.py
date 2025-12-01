@@ -17,12 +17,15 @@ def get_supabase_client() -> Client:
     global _supabase_client
     
     if _supabase_client is None:
-        if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
+        supabase_url = Config.SUPABASE_URL
+        supabase_key = Config.SUPABASE_KEY
+        
+        if not supabase_url or not supabase_key:
             raise ValueError(
-                "SUPABASE_URL и SUPABASE_KEY должны быть установлены в .env файле"
+                "SUPABASE_URL и SUPABASE_KEY должны быть установлены в .env файле или Streamlit secrets"
             )
         
-        _supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
+        _supabase_client = create_client(supabase_url, supabase_key)
     
     return _supabase_client
 

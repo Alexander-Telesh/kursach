@@ -23,8 +23,10 @@ def test_supabase_sdk():
     try:
         Config.validate()
         print("   ✅ Конфигурация загружена")
-        print(f"   SUPABASE_URL: {Config.SUPABASE_URL[:40]}..." if Config.SUPABASE_URL else "   ❌ Не установлен")
-        print(f"   SUPABASE_KEY: {'установлен' if Config.SUPABASE_KEY else '❌ не установлен'}")
+        supabase_url = Config.SUPABASE_URL
+        supabase_key = Config.SUPABASE_KEY
+        print(f"   SUPABASE_URL: {supabase_url[:40]}..." if supabase_url else "   ❌ Не установлен")
+        print(f"   SUPABASE_KEY: {'установлен' if supabase_key else '❌ не установлен'}")
     except ValueError as e:
         print(f"   ❌ Ошибка: {e}")
         return 1
