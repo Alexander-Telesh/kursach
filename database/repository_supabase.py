@@ -93,8 +93,11 @@ class ReviewRepositorySupabase:
     """Репозиторий для работы с отзывами через Supabase SDK."""
     
     @staticmethod
-    def get_by_book_id(book_id: int) -> List[Dict]:
-        """Получить все отзывы для книги."""
+    def get_by_book_id(book_id: int, comment_type: str = None) -> List[Dict]:
+        """Получить все отзывы/комментарии для книги."""
+        if comment_type:
+            return ReviewRepositorySupabase.get_by_book_id_and_type(book_id, comment_type)
+        
         supabase = get_supabase_client()
         response = supabase.table("reviews").select("*").eq("book_id", book_id).order("date", desc=True).execute()
         return response.data if response.data else []
@@ -107,46 +110,51 @@ class ReviewRepositorySupabase:
         return response.data if response.data else []
     
     @staticmethod
-    def get_average_rating(book_id: int) -> Optional[float]:
-        """Получить средний рейтинг книги."""
+    def get_by_book_id_and_type(book_id: int, comment_type: str = None) -> List[Dict]:
+        """Получить отзывы/комментарии для книги, опционально фильтруя по типу."""
         supabase = get_supabase_client()
-        # Пробуем использовать RPC функцию для вычисления среднего
-        try:
-            response = supabase.rpc("get_book_avg_rating", {"book_id_param": book_id}).execute()
-            if response.data and len(response.data) > 0:
-                avg = response.data[0].get("avg_rating")
-                return float(avg) if avg is not None else None
-        except Exception:
-            pass
+        query = supabase.table("reviews").select("*").eq("book_id", book_id)
         
-        # Fallback: вычисляем в Python
-        reviews = ReviewRepositorySupabase.get_by_book_id(book_id)
-        ratings = [r.get("rating") for r in reviews if r.get("rating") is not None]
-        return sum(ratings) / len(ratings) if ratings else None
+        if comment_type:
+            query = query.eq("comment_type", comment_type)
+        
+        response = query.order("date", desc=True).execute()
+        return response.data if response.data else []
     
     @staticmethod
-    def get_series_average_rating() -> Optional[float]:
-        """Получить средний рейтинг всей серии."""
+    def get_by_book_id_sorted_by_likes(book_id: int, limit: int = None) -> List[Dict]:
+        """Получить отзывы/комментарии для книги, отсортированные по количеству лайков."""
         supabase = get_supabase_client()
-        # Пробуем использовать RPC функцию
-        try:
-            response = supabase.rpc("get_series_avg_rating").execute()
-            if response.data and len(response.data) > 0:
-                avg = response.data[0].get("avg_rating")
-                return float(avg) if avg is not None else None
-        except Exception:
-            pass
+        query = supabase.table("reviews").select("*").eq("book_id", book_id).order("likes_count", desc=True)
         
-        # Fallback: вычисляем в Python
-        all_reviews = ReviewRepositorySupabase.get_all_recent(limit=10000)
-        ratings = [r.get("rating") for r in all_reviews if r.get("rating") is not None]
-        return sum(ratings) / len(ratings) if ratings else None
+        if limit:
+            query = query.limit(limit)
+        
+        response = query.execute()
+        return response.data if response.data else []
+    
+    @staticmethod
+    def get_total_likes_for_book(book_id: int) -> int:
+        """Получить общее количество лайков для книги."""
+        supabase = get_supabase_client()
+        response = supabase.table("reviews").select("likes_count").eq("book_id", book_id).execute()
+        
+        if response.data:
+            return sum(r.get("likes_count", 0) for r in response.data)
+        return 0
     
     @staticmethod
     def create(review_data: Dict) -> Dict:
         """Создать новый отзыв."""
         supabase = get_supabase_client()
         response = supabase.table("reviews").insert(review_data).execute()
+        return response.data[0] if response.data else {}
+    
+    @staticmethod
+    def update(review_id: int, review_data: Dict) -> Dict:
+        """Обновить отзыв по ID."""
+        supabase = get_supabase_client()
+        response = supabase.table("reviews").update(review_data).eq("id", review_id).execute()
         return response.data[0] if response.data else {}
     
     @staticmethod

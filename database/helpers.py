@@ -13,6 +13,7 @@ class Book:
         self.series_order = data.get("series_order")
         self.fb2_file_path = data.get("fb2_file_path")
         self.litres_book_id = data.get("litres_book_id")
+        self.author_today_work_id = data.get("author_today_work_id")
         self.created_at = data.get("created_at")
         self.updated_at = data.get("updated_at")
         self._data = data
@@ -26,22 +27,24 @@ class Book:
 
 
 class Review:
-    """Класс-обертка для работы с отзывом из Supabase SDK."""
+    """Класс-обертка для работы с отзывом/комментарием из Supabase SDK."""
     
     def __init__(self, data: Dict):
         self.id = data.get("id")
         self.book_id = data.get("book_id")
         self.litres_review_id = data.get("litres_review_id")
         self.author_name = data.get("author_name")
-        self.rating = data.get("rating")
+        self.likes_count = data.get("likes_count", 0)
+        self.comment_type = data.get("comment_type", "comment")
         self.text = data.get("text")
         self.date = data.get("date")
+        self.parent_comment_id = data.get("parent_comment_id")
         self.created_at = data.get("created_at")
         self.updated_at = data.get("updated_at")
         self._data = data
     
     def __repr__(self):
-        return f"<Review(id={self.id}, book_id={self.book_id}, rating={self.rating})>"
+        return f"<Review(id={self.id}, book_id={self.book_id}, type={self.comment_type}, likes={self.likes_count})>"
     
     def to_dict(self) -> Dict:
         """Преобразовать в словарь."""

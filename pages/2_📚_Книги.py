@@ -1,9 +1,11 @@
 """Страница со списком всех книг с возможностью чтения и скачивания."""
 import streamlit as st
 import os
+from datetime import datetime
 from database.repository_supabase import BookRepositorySupabase, ReviewRepositorySupabase
 from database.helpers import dict_to_book, dicts_to_books, dicts_to_reviews
 from services.fb2_parser import FB2Parser
+from services.author_today_api import AuthorToday, sync_reviews_from_author_today
 from utils.config import Config
 
 st.title("📚 Книги серии 'Стеллар'")
@@ -61,14 +63,14 @@ else:
             st.caption(f"Порядок в серии: #{selected_book.series_order}")
     
     with col2:
-        # Средний рейтинг книги
-        avg_rating = ReviewRepositorySupabase.get_average_rating(selected_book.id)
-        if avg_rating:
-            st.metric("Средний рейтинг", f"{avg_rating:.2f} ⭐")
+        # Количество комментариев и рецензий
+        comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "comment")
+        reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "review")
+        total_likes = ReviewRepositorySupabase.get_total_likes_for_book(selected_book.id)
         
-        # Количество отзывов
-        reviews_data = ReviewRepositorySupabase.get_by_book_id(selected_book.id)
-        st.metric("Отзывов", len(reviews_data))
+        st.metric("Комментариев", len(comments_data))
+        st.metric("Рецензий", len(reviews_data))
+        st.metric("Всего лайков", total_likes)
     
     st.markdown("---")
     
@@ -137,13 +139,110 @@ else:
     
     st.markdown("---")
     
-    # Отзывы на книгу
-    st.header("💬 Отзывы на книгу")
-    book_reviews_data = ReviewRepositorySupabase.get_by_book_id(selected_book.id)
-    book_reviews = dicts_to_reviews(book_reviews_data)
+    # Информация с AuthorToday
+    if selected_book.author_today_work_id:
+        st.header("📊 Информация с AuthorToday")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col2:
+            if st.button("🔄 Обновить лайки", key=f"update_likes_{selected_book.id}"):
+                with st.spinner("Обновление лайков..."):
+                    result = sync_reviews_from_author_today(book_id=selected_book.id, update_likes_only=True)
+                    if result.get("success"):
+                        st.success(f"✅ Обновлено лайков: {result.get('likes_updated', 0)}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
+        
+        # Получаем информацию о работе
+        try:
+            api = AuthorToday()
+            login = Config.AUTHORTODAY_LOGIN
+            password = Config.AUTHORTODAY_PASSWORD
+            
+            if login and password:
+                login_result = api.login(login, password)
+                if "token" in login_result:
+                    work_info = api.get_work_info(selected_book.author_today_work_id)
+                    
+                    if "error" not in work_info:
+                        # Аннотация
+                        if work_info.get("annotation"):
+                            with st.expander("📝 Аннотация с AuthorToday"):
+                                st.write(work_info["annotation"])
+                        
+                        # Статистика
+                        stats = work_info.get("statistics", {})
+                        if stats:
+                            st.subheader("📈 Статистика")
+                            stats_cols = st.columns(min(len(stats), 4))
+                            for idx, (key, value) in enumerate(stats.items()):
+                                if idx < len(stats_cols):
+                                    with stats_cols[idx]:
+                                        st.metric(key.capitalize(), value)
+        except Exception as e:
+            st.info("Информация с AuthorToday временно недоступна")
     
-    if book_reviews:
-        for review in book_reviews:
+    st.markdown("---")
+    
+    # Комментарии и рецензии
+    st.header("💬 Комментарии и рецензии")
+    
+    # Кнопка обновления
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🔄 Обновить с AuthorToday", key=f"sync_{selected_book.id}"):
+            with st.spinner("Синхронизация с AuthorToday..."):
+                result = sync_reviews_from_author_today(book_id=selected_book.id)
+                if result.get("success"):
+                    st.success(f"✅ Обновлено: {result.get('comments', 0)} комментариев, {result.get('reviews', 0)} рецензий")
+                    st.rerun()
+                else:
+                    st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
+    
+    # Комментарии
+    comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "comment")
+    comments = dicts_to_reviews(comments_data)
+    
+    if comments:
+        st.subheader("💬 Комментарии")
+        for comment in comments:
+            with st.container():
+                col1, col2 = st.columns([4, 1])
+                
+                with col1:
+                    author_info = comment.author_name or "Анонимный читатель"
+                    date_info = ""
+                    if comment.date:
+                        if isinstance(comment.date, str):
+                            try:
+                                date_obj = datetime.fromisoformat(comment.date.replace("Z", "+00:00"))
+                                date_info = f" • {date_obj.strftime('%d.%m.%Y')}"
+                            except:
+                                pass
+                        else:
+                            date_info = f" • {comment.date.strftime('%d.%m.%Y')}"
+                    st.caption(f"👤 {author_info}{date_info}")
+                    
+                    if comment.text:
+                        st.write(comment.text)
+                    else:
+                        st.write("*Комментарий без текста*")
+                
+                with col2:
+                    if comment.likes_count and comment.likes_count > 0:
+                        st.metric("❤️", comment.likes_count)
+                
+                st.markdown("---")
+    
+    # Рецензии
+    reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "review")
+    reviews = dicts_to_reviews(reviews_data)
+    
+    if reviews:
+        st.subheader("📄 Рецензии")
+        for review in reviews:
             with st.container():
                 col1, col2 = st.columns([4, 1])
                 
@@ -161,19 +260,16 @@ else:
                             date_info = f" • {review.date.strftime('%d.%m.%Y')}"
                     st.caption(f"👤 {author_info}{date_info}")
                     
-                    if review.rating:
-                        stars = "⭐" * int(review.rating)
-                        st.write(f"**Оценка:** {review.rating:.1f} {stars}")
-                    
                     if review.text:
                         st.write(review.text)
                     else:
-                        st.write("*Отзыв без текста*")
+                        st.write("*Рецензия без текста*")
                 
                 with col2:
-                    if review.rating:
-                        st.metric("", f"{review.rating:.1f}")
+                    if review.likes_count and review.likes_count > 0:
+                        st.metric("❤️", review.likes_count)
                 
                 st.markdown("---")
-    else:
-        st.info("Пока нет отзывов на эту книгу. Обновите отзывы с AuthorToday на главной странице.")
+    
+    if not comments and not reviews:
+        st.info("Пока нет комментариев и рецензий. Обновите данные с AuthorToday.")

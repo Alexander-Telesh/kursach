@@ -51,14 +51,15 @@ if st.button("🔍 Найти", type="primary") or search_query:
                             st.caption(f"Порядок в серии: #{book.series_order}")
                     
                     with col2:
-                        # Средний рейтинг
-                        avg_rating = ReviewRepositorySupabase.get_average_rating(book.id)
-                        if avg_rating:
-                            st.metric("Рейтинг", f"{avg_rating:.2f} ⭐")
+                        # Количество комментариев и рецензий
+                        comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(book.id, "comment")
+                        reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(book.id, "review")
+                        total_likes = ReviewRepositorySupabase.get_total_likes_for_book(book.id)
                         
-                        # Количество отзывов
-                        reviews_data = ReviewRepositorySupabase.get_by_book_id(book.id)
-                        st.metric("Отзывов", len(reviews_data))
+                        st.metric("Комментариев", len(comments_data) if comments_data else 0)
+                        st.metric("Рецензий", len(reviews_data) if reviews_data else 0)
+                        if total_likes > 0:
+                            st.metric("Лайков", total_likes)
                         
                         # Кнопка перехода к книге
                         if st.button(f"Открыть", key=f"open_{book.id}"):
@@ -91,9 +92,15 @@ if st.button("🔍 Найти", type="primary") or search_query:
                             st.write(description)
                     
                     with col2:
-                        avg_rating = ReviewRepositorySupabase.get_average_rating(book.id)
-                        if avg_rating:
-                            st.metric("Рейтинг", f"{avg_rating:.2f} ⭐")
+                        # Количество комментариев и рецензий
+                        comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(book.id, "comment")
+                        reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(book.id, "review")
+                        total_likes = ReviewRepositorySupabase.get_total_likes_for_book(book.id)
+                        
+                        st.metric("Комментариев", len(comments_data) if comments_data else 0)
+                        st.metric("Рецензий", len(reviews_data) if reviews_data else 0)
+                        if total_likes > 0:
+                            st.metric("Лайков", total_likes)
                         
                         if st.button(f"Открыть", key=f"view_{book.id}"):
                             st.session_state['selected_book_id'] = book.id

@@ -3,9 +3,8 @@ import requests
 import time
 from typing import List, Dict, Optional
 from datetime import datetime
+from bs4 import BeautifulSoup
 from utils.config import Config
-# Импорты репозиториев перенесены в функцию для избежания циклических зависимостей
-# Старые импорты удалены - теперь используется только Supabase SDK
 
 
 class AuthorToday:
@@ -80,26 +79,61 @@ class AuthorToday:
             print(f"❌ Ошибка получения информации о пользователе: {e}")
             return {"error": str(e)}
     
-    def search(self, title: str) -> dict:
+    def search_work(self, query: str) -> List[Dict]:
         """
-        Поиск произведений по названию.
+        Поиск произведений по запросу через API.
         
         Args:
-            title: Название для поиска
+            query: Поисковый запрос (название книги, автор)
         
         Returns:
-            Результаты поиска
+            Список найденных произведений
         """
-        try:
-            response = requests.get(
-                f"{self.web_api}/search?q={title}",
-                headers=self.headers,
-                timeout=10
-            )
-            return response.json()
-        except Exception as e:
-            print(f"❌ Ошибка поиска в AuthorToday: {e}")
-            return {"error": str(e)}
+        import urllib.parse
+        
+        # Кодируем запрос для URL
+        encoded_query = urllib.parse.quote(query)
+        
+        # Пробуем разные варианты endpoints
+        possible_endpoints = [
+            f"{self.api}/v1/work/search?query={encoded_query}",
+            f"{self.api}/v1/work/search?q={encoded_query}",
+            f"{self.web_api}/search?q={encoded_query}",
+        ]
+        
+        for endpoint in possible_endpoints:
+            try:
+                response = requests.get(
+                    endpoint,
+                    headers=self.headers,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    # Структура ответа может быть разной
+                    if isinstance(data, dict):
+                        # Пробуем разные ключи
+                        items = (
+                            data.get("items") or 
+                            data.get("works") or 
+                            data.get("data") or 
+                            data.get("results") or
+                            []
+                        )
+                        if items:
+                            print(f"   ✅ Найдено через endpoint: {endpoint}")
+                            return items if isinstance(items, list) else []
+                    elif isinstance(data, list):
+                        print(f"   ✅ Найдено через endpoint: {endpoint}")
+                        return data
+                elif response.status_code != 404:
+                    print(f"   ⚠️  Статус {response.status_code} для {endpoint}")
+            except Exception as e:
+                print(f"   ⚠️  Ошибка для {endpoint}: {e}")
+                continue
+        
+        return []
     
     def get_work_meta_info(self, work_id: int) -> dict:
         """
@@ -121,49 +155,263 @@ class AuthorToday:
             print(f"❌ Ошибка получения информации о произведении: {e}")
             return {"error": str(e)}
     
-    def get_work_reviews(self, work_id: int) -> List[Dict]:
+    def get_work_info(self, work_id: int) -> Dict:
         """
-        Получить отзывы на произведение.
-        
-        Примечание: Нужно уточнить точный endpoint для получения отзывов.
-        Возможные варианты:
-        - /v1/work/{work_id}/reviews
-        - /v1/work/{work_id}/comments
-        - /web_api/work/{work_id}/reviews
+        Получить полную информацию о работе с веб-страницы AuthorToday.
+        Включает аннотацию и статистику.
         
         Args:
             work_id: ID произведения в AuthorToday
         
         Returns:
-            Список отзывов
+            Словарь с информацией: annotation, statistics (views, reads, subscribers, etc.)
         """
-        # Пробуем разные возможные endpoints
+        try:
+            url = f"{self.web_api}/work/{work_id}"
+            response = requests.get(url, headers=self.headers, timeout=10)
+            
+            if response.status_code != 200:
+                return {"error": f"HTTP {response.status_code}"}
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            result = {
+                "annotation": "",
+                "statistics": {}
+            }
+            
+            # Парсим аннотацию
+            # Ищем блок с аннотацией (может быть в разных местах)
+            annotation_selectors = [
+                '.work-annotation',
+                '.annotation',
+                '[class*="annotation"]',
+                '[class*="description"]',
+                '.work-description'
+            ]
+            
+            for selector in annotation_selectors:
+                annotation_elem = soup.select_one(selector)
+                if annotation_elem:
+                    result["annotation"] = annotation_elem.get_text(strip=True)
+                    break
+            
+            # Парсим статистику
+            # Ищем блоки со статистикой (просмотры, чтения, подписчики, лайки)
+            stats_selectors = [
+                '.work-stats',
+                '.statistics',
+                '[class*="stat"]',
+                '[class*="metric"]'
+            ]
+            
+            for selector in stats_selectors:
+                stats_elem = soup.select_one(selector)
+                if stats_elem:
+                    # Пытаемся извлечь числа из текста
+                    text = stats_elem.get_text()
+                    # Простой парсинг (можно улучшить)
+                    if "просмотр" in text.lower() or "view" in text.lower():
+                        # Извлекаем число просмотров
+                        pass
+                    break
+            
+            # Альтернативный способ: ищем через API meta-info
+            meta_info = self.get_work_meta_info(work_id)
+            if "error" not in meta_info:
+                # Дополняем данными из API
+                if not result["annotation"] and "annotation" in meta_info:
+                    result["annotation"] = meta_info.get("annotation", "")
+                
+                # Статистика из API
+                if "statistics" in meta_info:
+                    result["statistics"] = meta_info["statistics"]
+                elif "views" in meta_info or "reads" in meta_info:
+                    result["statistics"] = {
+                        "views": meta_info.get("views", 0),
+                        "reads": meta_info.get("reads", 0),
+                        "subscribers": meta_info.get("subscribers", 0),
+                        "likes": meta_info.get("likes", 0)
+                    }
+            
+            return result
+        except Exception as e:
+            print(f"❌ Ошибка получения информации о работе {work_id}: {e}")
+            return {"error": str(e)}
+    
+    def get_work_likes(self, work_id: int) -> int:
+        """
+        Получить количество лайков у произведения.
+        
+        Args:
+            work_id: ID произведения в AuthorToday
+        
+        Returns:
+            Количество лайков
+        """
+        try:
+            # Пробуем через API
+            meta_info = self.get_work_meta_info(work_id)
+            if "error" not in meta_info:
+                likes = meta_info.get("likes") or meta_info.get("likesCount") or meta_info.get("likeCount")
+                if likes is not None:
+                    return int(likes)
+            
+            # Пробуем через веб-страницу
+            url = f"{self.web_api}/work/{work_id}"
+            response = requests.get(url, headers=self.headers, timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                # Ищем элемент с лайками
+                like_selectors = [
+                    '[class*="like"]',
+                    '[class*="favorite"]',
+                    '[data-likes]',
+                    '[data-like-count]'
+                ]
+                
+                for selector in like_selectors:
+                    like_elem = soup.select_one(selector)
+                    if like_elem:
+                        # Пытаемся извлечь число
+                        text = like_elem.get_text()
+                        # Простой парсинг числа
+                        import re
+                        numbers = re.findall(r'\d+', text)
+                        if numbers:
+                            return int(numbers[0])
+                        
+                        # Пробуем data-атрибут
+                        likes = like_elem.get('data-likes') or like_elem.get('data-like-count')
+                        if likes:
+                            return int(likes)
+            
+            return 0
+        except Exception as e:
+            print(f"❌ Ошибка получения лайков для работы {work_id}: {e}")
+            return 0
+    
+    def get_work_comments(self, work_id: int) -> List[Dict]:
+        """
+        Получить комментарии к произведению.
+        
+        Args:
+            work_id: ID произведения в AuthorToday
+        
+        Returns:
+            Список комментариев с полями: id, author_name, text, date, likes_count
+        """
+        comments = []
+        
+        # Пробуем через API
         possible_endpoints = [
-            f"{self.api}/v1/work/{work_id}/reviews",
             f"{self.api}/v1/work/{work_id}/comments",
-            f"{self.web_api}/work/{work_id}/reviews",
             f"{self.web_api}/work/{work_id}/comments",
         ]
         
         for endpoint in possible_endpoints:
             try:
-                response = requests.get(
-                    endpoint,
-                    headers=self.headers,
-                    timeout=10
-                )
+                response = requests.get(endpoint, headers=self.headers, timeout=10)
                 if response.status_code == 200:
                     data = response.json()
-                    # Адаптируйте под структуру ответа
                     if isinstance(data, list):
-                        return data
+                        comments = data
+                        break
                     elif isinstance(data, dict):
-                        # Возможные ключи: reviews, comments, items, data
-                        return data.get("reviews", data.get("comments", data.get("items", data.get("data", []))))
-            except:
+                        items = data.get("comments", data.get("items", data.get("data", [])))
+                        if items:
+                            comments = items
+                            break
+            except Exception:
                 continue
         
-        return []
+        # Если API не работает, пробуем парсинг веб-страницы
+        if not comments:
+            try:
+                url = f"{self.web_api}/work/{work_id}"
+                response = requests.get(url, headers=self.headers, timeout=10)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    # Парсим комментарии со страницы
+                    comment_elements = soup.select('.comment, [class*="comment"]')
+                    for elem in comment_elements:
+                        comment = {
+                            "id": elem.get('data-id') or elem.get('id'),
+                            "author_name": "",
+                            "text": elem.get_text(strip=True),
+                            "date": None,
+                            "likes_count": 0
+                        }
+                        # Пытаемся извлечь автора
+                        author_elem = elem.select_one('.author, [class*="author"]')
+                        if author_elem:
+                            comment["author_name"] = author_elem.get_text(strip=True)
+                        comments.append(comment)
+            except Exception as e:
+                print(f"⚠️  Ошибка парсинга комментариев: {e}")
+        
+        return comments
+    
+    def get_work_reviews(self, work_id: int) -> List[Dict]:
+        """
+        Получить рецензии на произведение (отдельно от комментариев).
+        
+        Args:
+            work_id: ID произведения в AuthorToday
+        
+        Returns:
+            Список рецензий с полями: id, author_name, text, date, likes_count
+        """
+        reviews = []
+        
+        # Пробуем через API
+        possible_endpoints = [
+            f"{self.api}/v1/work/{work_id}/reviews",
+            f"{self.web_api}/work/{work_id}/reviews",
+        ]
+        
+        for endpoint in possible_endpoints:
+            try:
+                response = requests.get(endpoint, headers=self.headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, list):
+                        reviews = data
+                        break
+                    elif isinstance(data, dict):
+                        items = data.get("reviews", data.get("items", data.get("data", [])))
+                        if items:
+                            reviews = items
+                            break
+            except Exception:
+                continue
+        
+        # Если API не работает, пробуем парсинг веб-страницы
+        if not reviews:
+            try:
+                url = f"{self.web_api}/work/{work_id}"
+                response = requests.get(url, headers=self.headers, timeout=10)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    # Парсим рецензии со страницы (обычно это более длинные тексты)
+                    review_elements = soup.select('.review, [class*="review"]')
+                    for elem in review_elements:
+                        review = {
+                            "id": elem.get('data-id') or elem.get('id'),
+                            "author_name": "",
+                            "text": elem.get_text(strip=True),
+                            "date": None,
+                            "likes_count": 0
+                        }
+                        # Пытаемся извлечь автора
+                        author_elem = elem.select_one('.author, [class*="author"]')
+                        if author_elem:
+                            review["author_name"] = author_elem.get_text(strip=True)
+                        reviews.append(review)
+            except Exception as e:
+                print(f"⚠️  Ошибка парсинга рецензий: {e}")
+        
+        return reviews
     
     def search_book_and_get_reviews(self, book_title: str, author_name: str = None) -> List[Dict]:
         """
@@ -176,36 +424,60 @@ class AuthorToday:
         Returns:
             Список отзывов
         """
-        # Поиск книги
+        # Формируем поисковый запрос
         search_query = book_title
         if author_name:
             search_query = f"{book_title} {author_name}"
         
-        search_results = self.search(search_query)
+        # Ищем произведения через API
+        works = self.search_work(search_query)
         
-        if "error" in search_results:
+        if not works:
+            print(f"⚠️  Книга '{book_title}' не найдена на AuthorToday")
             return []
-        
-        # Парсим результаты поиска
-        # Структура ответа может отличаться, адаптируйте под реальный формат
-        works = []
-        if isinstance(search_results, dict):
-            works = search_results.get("works", search_results.get("items", search_results.get("data", [])))
-        elif isinstance(search_results, list):
-            works = search_results
         
         all_reviews = []
         
         # Для каждого найденного произведения получаем отзывы
         for work in works[:3]:  # Ограничиваем до 3 результатов
-            work_id = work.get("id") or work.get("workId") or work.get("work_id")
-            if work_id:
-                # Проверяем, что это нужная книга (по названию)
-                work_title = work.get("title", "").lower()
-                if book_title.lower() in work_title or work_title in book_title.lower():
-                    reviews = self.get_work_reviews(work_id)
+            # Пытаемся получить ID произведения из разных возможных полей
+            work_id = work.get("id") or work.get("workId") or work.get("work_id") or work.get("Id")
+            
+            if not work_id:
+                continue
+            
+            # Проверяем, что это нужная книга (по названию и автору)
+            work_title = (work.get("title") or work.get("Title") or "").lower()
+            work_author = (work.get("authorName") or work.get("author") or work.get("AuthorName") or "").lower()
+            
+            book_title_lower = book_title.lower()
+            author_name_lower = (author_name or "").lower()
+            
+            # Проверяем совпадение названия
+            title_match = (
+                book_title_lower in work_title or 
+                work_title in book_title_lower or
+                any(word in work_title for word in book_title_lower.split() if len(word) > 3)
+            )
+            
+            # Проверяем совпадение автора (если указан)
+            author_match = True
+            if author_name_lower:
+                author_match = (
+                    author_name_lower in work_author or 
+                    work_author in author_name_lower or
+                    any(word in work_author for word in author_name_lower.split() if len(word) > 3)
+                )
+            
+            if title_match and author_match:
+                print(f"📖 Найдена книга: {work.get('title', work.get('Title', 'Без названия'))} (ID: {work_id})")
+                reviews = self.get_work_reviews(work_id)
+                if reviews:
+                    print(f"   ✅ Найдено отзывов: {len(reviews)}")
                     all_reviews.extend(reviews)
-                    time.sleep(0.5)  # Задержка между запросами
+                else:
+                    print(f"   ⚠️  Отзывы не найдены")
+                time.sleep(0.5)  # Задержка между запросами
         
         return all_reviews
 
@@ -226,12 +498,13 @@ def _parse_date(date_str: Optional[str]):
     return None
 
 
-def sync_reviews_from_author_today(book_id: Optional[int] = None) -> Dict:
+def sync_reviews_from_author_today(book_id: Optional[int] = None, update_likes_only: bool = False) -> Dict:
     """
-    Синхронизировать отзывы с AuthorToday API.
+    Синхронизировать комментарии, рецензии и лайки с AuthorToday.
     
     Args:
         book_id: ID книги (если None, обновляются все книги)
+        update_likes_only: Если True, обновляются только лайки существующих записей
     
     Returns:
         Словарь со статистикой обновления
@@ -245,20 +518,164 @@ def sync_reviews_from_author_today(book_id: Optional[int] = None) -> Dict:
     if not login or not password:
         return {
             "success": False,
-            "error": "AUTHORTODAY_LOGIN и AUTHORTODAY_PASSWORD должны быть установлены в .env файле",
-            "message": "Настройте учетные данные AuthorToday в .env файле"
+            "error": "AUTHORTODAY_LOGIN и AUTHORTODAY_PASSWORD должны быть установлены в .env файле или Streamlit secrets",
+            "message": "Настройте учетные данные AuthorToday в .env файле или Streamlit secrets"
         }
     
     # Создаем экземпляр API и авторизуемся
     api = AuthorToday()
+    print(f"🔐 Попытка авторизации в AuthorToday для пользователя: {login}")
     login_result = api.login(login, password)
     
-    if "error" in login_result or "token" not in login_result:
+    if "error" in login_result:
+        error_msg = login_result.get("error", "Неизвестная ошибка")
         return {
             "success": False,
-            "error": "Ошибка авторизации в AuthorToday",
+            "error": f"Ошибка авторизации в AuthorToday: {error_msg}",
             "message": "Проверьте правильность логина и пароля"
         }
+    
+    if "token" not in login_result:
+        return {
+            "success": False,
+            "error": "Ошибка авторизации в AuthorToday: токен не получен",
+            "message": f"Ответ от API: {login_result}",
+            "details": login_result
+        }
+    
+    print(f"✅ Авторизация успешна, токен получен")
+    
+    def process_book(book_data: Dict) -> Dict:
+        """Обработать одну книгу."""
+        book_id = book_data.get("id")
+        book_title = book_data.get("title", "")
+        work_id = book_data.get("author_today_work_id")
+        
+        if not work_id:
+            return {
+                "book_id": book_id,
+                "comments": 0,
+                "reviews": 0,
+                "likes_updated": 0,
+                "error": "author_today_work_id не установлен"
+            }
+        
+        print(f"📖 Обработка: '{book_title}' (work_id: {work_id})")
+        
+        stats = {
+            "book_id": book_id,
+            "comments": 0,
+            "reviews": 0,
+            "likes_updated": 0
+        }
+        
+        if not update_likes_only:
+            # Получаем комментарии
+            comments = api.get_work_comments(work_id)
+            print(f"   📝 Найдено комментариев: {len(comments)}")
+            
+            for comment_data in comments:
+                comment_dict = {
+                    "book_id": book_id,
+                    "litres_review_id": str(comment_data.get("id", comment_data.get("commentId", ""))),
+                    "comment_type": "comment",
+                    "author_name": (
+                        comment_data.get("author_name") or
+                        comment_data.get("author") or 
+                        comment_data.get("userName") or 
+                        comment_data.get("authorName") or 
+                        comment_data.get("user") or
+                        "Анонимный читатель"
+                    ),
+                    "text": (
+                        comment_data.get("text") or 
+                        comment_data.get("content") or 
+                        comment_data.get("comment") or 
+                        comment_data.get("message") or
+                        ""
+                    ),
+                    "likes_count": int(comment_data.get("likes_count", comment_data.get("likes", 0)) or 0),
+                    "date": _parse_date(
+                        comment_data.get("date") or 
+                        comment_data.get("createdAt") or 
+                        comment_data.get("created_at") or
+                        comment_data.get("dateCreated")
+                    )
+                }
+                
+                if comment_dict["text"]:
+                    try:
+                        ReviewRepositorySupabase.create_or_update(comment_dict)
+                        stats["comments"] += 1
+                    except Exception as e:
+                        print(f"   ⚠️  Ошибка при сохранении комментария: {e}")
+            
+            # Получаем рецензии
+            reviews = api.get_work_reviews(work_id)
+            print(f"   📄 Найдено рецензий: {len(reviews)}")
+            
+            for review_data in reviews:
+                review_dict = {
+                    "book_id": book_id,
+                    "litres_review_id": str(review_data.get("id", review_data.get("reviewId", ""))),
+                    "comment_type": "review",
+                    "author_name": (
+                        review_data.get("author_name") or
+                        review_data.get("author") or 
+                        review_data.get("userName") or 
+                        review_data.get("authorName") or 
+                        review_data.get("user") or
+                        "Анонимный читатель"
+                    ),
+                    "text": (
+                        review_data.get("text") or 
+                        review_data.get("content") or 
+                        review_data.get("reviewText") or
+                        review_data.get("message") or
+                        ""
+                    ),
+                    "likes_count": int(review_data.get("likes_count", review_data.get("likes", 0)) or 0),
+                    "date": _parse_date(
+                        review_data.get("date") or 
+                        review_data.get("createdAt") or 
+                        review_data.get("created_at") or
+                        review_data.get("dateCreated")
+                    )
+                }
+                
+                if review_dict["text"]:
+                    try:
+                        ReviewRepositorySupabase.create_or_update(review_dict)
+                        stats["reviews"] += 1
+                    except Exception as e:
+                        print(f"   ⚠️  Ошибка при сохранении рецензии: {e}")
+        else:
+            # Обновляем только лайки для существующих записей
+            existing_reviews = ReviewRepositorySupabase.get_by_book_id(book_id)
+            comments = api.get_work_comments(work_id)
+            reviews = api.get_work_reviews(work_id)
+            
+            # Создаем маппинг ID -> лайки
+            likes_map = {}
+            for item in comments + reviews:
+                item_id = str(item.get("id", item.get("commentId", item.get("reviewId", ""))))
+                likes = int(item.get("likes_count", item.get("likes", 0)) or 0)
+                if item_id:
+                    likes_map[item_id] = likes
+            
+            # Обновляем лайки
+            for review in existing_reviews:
+                review_id = review.get("litres_review_id")
+                if review_id and review_id in likes_map:
+                    new_likes = likes_map[review_id]
+                    if review.get("likes_count", 0) != new_likes:
+                        try:
+                            ReviewRepositorySupabase.update(review.get("id"), {"likes_count": new_likes})
+                            stats["likes_updated"] += 1
+                        except Exception as e:
+                            print(f"   ⚠️  Ошибка при обновлении лайков: {e}")
+        
+        return stats
     
     if book_id:
         # Обновляем отзывы для одной книги
@@ -266,60 +683,43 @@ def sync_reviews_from_author_today(book_id: Optional[int] = None) -> Dict:
         if not book_data:
             return {"success": False, "error": "Книга не найдена"}
         
-        reviews_data = api.search_book_and_get_reviews(book_data.get("title", ""), book_data.get("author", ""))
-        updated_count = 0
-        
-        for review_data in reviews_data:
-            # Адаптируйте под структуру ответа API AuthorToday
-            review_dict = {
-                "book_id": book_id,
-                "litres_review_id": str(review_data.get("id", "")),
-                "author_name": review_data.get("author") or review_data.get("userName") or review_data.get("authorName") or "Анонимный читатель",
-                "rating": review_data.get("rating") or review_data.get("score") or review_data.get("stars"),
-                "text": review_data.get("text") or review_data.get("content") or review_data.get("comment") or review_data.get("reviewText"),
-                "date": _parse_date(review_data.get("date") or review_data.get("createdAt") or review_data.get("created_at"))
-            }
-            
-            ReviewRepositorySupabase.create_or_update(review_dict)
-            updated_count += 1
+        stats = process_book(book_data)
         
         return {
             "success": True,
             "book_id": book_id,
-            "reviews_updated": updated_count
+            **stats
         }
     else:
         # Обновляем отзывы для всех книг
         books_data = BookRepositorySupabase.get_all()
-        stats = {
+        total_stats = {
             "total_books": len(books_data),
             "updated_books": 0,
-            "total_reviews": 0
+            "total_comments": 0,
+            "total_reviews": 0,
+            "total_likes_updated": 0
         }
         
-        for book_data in books_data:
-            reviews_data = api.search_book_and_get_reviews(book_data.get("title", ""), book_data.get("author", ""))
-            if reviews_data:
-                for review_data in reviews_data:
-                    review_dict = {
-                        "book_id": book_data.get("id"),
-                        "litres_review_id": str(review_data.get("id", "")),
-                        "author_name": review_data.get("author") or review_data.get("userName") or review_data.get("authorName") or "Анонимный читатель",
-                        "rating": review_data.get("rating") or review_data.get("score") or review_data.get("stars"),
-                        "text": review_data.get("text") or review_data.get("content") or review_data.get("comment") or review_data.get("reviewText"),
-                        "date": _parse_date(review_data.get("date") or review_data.get("createdAt") or review_data.get("created_at"))
-                    }
-                    
-                    ReviewRepositorySupabase.create_or_update(review_dict)
-                    stats["total_reviews"] += 1
-                
-                stats["updated_books"] += 1
+        print(f"📚 Начинаем обновление для {total_stats['total_books']} книг")
+        
+        for idx, book_data in enumerate(books_data, 1):
+            print(f"\n[{idx}/{total_stats['total_books']}] ", end="")
+            stats = process_book(book_data)
             
-            # Задержка между запросами (не более 1 запроса в секунду)
+            if stats.get("comments", 0) > 0 or stats.get("reviews", 0) > 0 or stats.get("likes_updated", 0) > 0:
+                total_stats["updated_books"] += 1
+            
+            total_stats["total_comments"] += stats.get("comments", 0)
+            total_stats["total_reviews"] += stats.get("reviews", 0)
+            total_stats["total_likes_updated"] += stats.get("likes_updated", 0)
+            
+            # Задержка между запросами
             time.sleep(1.1)
         
+        print(f"\n✅ Обновление завершено")
         return {
             "success": True,
-            **stats
+            **total_stats
         }
 

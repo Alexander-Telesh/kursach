@@ -18,13 +18,14 @@ def _get_config_value(key: str, default: str = "") -> str:
     # Пробуем получить из Streamlit secrets (для Streamlit Cloud)
     try:
         import streamlit as st
+        # Проверяем, что Streamlit инициализирован (не в скрипте)
         if hasattr(st, 'secrets'):
             try:
                 # Вариант 1: st.secrets[key] (прямой доступ)
                 value = st.secrets[key]
                 if value:
                     return str(value)
-            except (KeyError, TypeError):
+            except (KeyError, TypeError, AttributeError):
                 try:
                     # Вариант 2: st.secrets.secrets[key] (для secrets.toml)
                     if hasattr(st.secrets, 'secrets'):
@@ -33,8 +34,14 @@ def _get_config_value(key: str, default: str = "") -> str:
                             return str(value)
                 except (KeyError, AttributeError):
                     pass
-    except (ImportError, RuntimeError):
+            except Exception:
+                # Игнорируем ошибки Streamlit secrets (например, когда не инициализирован)
+                pass
+    except (ImportError, RuntimeError, AttributeError):
         # Streamlit не доступен или не инициализирован
+        pass
+    except Exception:
+        # Игнорируем любые другие ошибки при работе с Streamlit
         pass
     
     # Fallback на переменные окружения

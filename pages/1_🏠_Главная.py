@@ -19,7 +19,7 @@ st.markdown("""
 # Статистика
 st.header("📊 Статистика")
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 books_data = BookRepositorySupabase.get_all()
 books = dicts_to_books(books_data)
@@ -28,19 +28,27 @@ total_books = len(books)
 with col1:
     st.metric("Количество книг", total_books)
 
-# Средний рейтинг серии
-avg_rating = ReviewRepositorySupabase.get_series_average_rating()
-with col2:
-    if avg_rating:
-        st.metric("Средний рейтинг серии", f"{avg_rating:.2f} ⭐")
-    else:
-        st.metric("Средний рейтинг серии", "Нет данных")
+# Подсчитываем статистику по всем книгам
+total_comments = 0
+total_reviews = 0
+total_likes = 0
 
-# Общее количество отзывов
-all_reviews_data = ReviewRepositorySupabase.get_all_recent(limit=1000)
-total_reviews = len(all_reviews_data)
+for book in books_data:
+    book_id = book.get("id")
+    comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(book_id, "comment")
+    reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(book_id, "review")
+    total_comments += len(comments_data) if comments_data else 0
+    total_reviews += len(reviews_data) if reviews_data else 0
+    total_likes += ReviewRepositorySupabase.get_total_likes_for_book(book_id)
+
+with col2:
+    st.metric("Комментариев", total_comments)
+
 with col3:
-    st.metric("Всего отзывов", total_reviews)
+    st.metric("Рецензий", total_reviews)
+
+with col4:
+    st.metric("Всего лайков", total_likes)
 
 st.markdown("---")
 
@@ -95,10 +103,15 @@ if recent_reviews:
                         date_info = f" • {review.date.strftime('%d.%m.%Y')}"
                 st.caption(f"👤 {author_info}{date_info}")
                 
-                # Рейтинг
-                if review.rating:
-                    stars = "⭐" * int(review.rating)
-                    st.write(f"**Оценка:** {review.rating:.1f} {stars}")
+                # Лайки
+                if review.likes_count and review.likes_count > 0:
+                    st.write(f"❤️ **{review.likes_count}** лайков")
+                
+                # Тип (комментарий или рецензия)
+                if review.comment_type == "review":
+                    st.caption("📄 Рецензия")
+                else:
+                    st.caption("💬 Комментарий")
                 
                 # Текст отзыва
                 if review.text:
@@ -107,8 +120,8 @@ if recent_reviews:
                     st.write("*Отзыв без текста*")
             
             with col2:
-                if review.rating:
-                    st.metric("Оценка", f"{review.rating:.1f}")
+                if review.likes_count and review.likes_count > 0:
+                    st.metric("❤️", review.likes_count)
             
             st.markdown("---")
 else:
