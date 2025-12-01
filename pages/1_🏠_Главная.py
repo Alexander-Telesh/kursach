@@ -75,8 +75,45 @@ st.markdown("---")
 # Последние отзывы
 st.header("💬 Последние отзывы")
 
-recent_reviews_data = ReviewRepositorySupabase.get_all_recent(limit=10)
-recent_reviews = dicts_to_reviews(recent_reviews_data)
+# Сортировка и фильтр
+col1, col2 = st.columns([2, 2])
+with col1:
+    sort_option = st.selectbox(
+        "Сортировка:",
+        ["По дате (новые)", "По дате (старые)", "По лайкам (больше)", "По лайкам (меньше)"],
+        key="main_sort"
+    )
+with col2:
+    filter_type = st.selectbox(
+        "Фильтр:",
+        ["Все", "Только комментарии", "Только рецензии"],
+        key="main_filter"
+    )
+
+# Получаем все отзывы
+all_reviews_data = ReviewRepositorySupabase.get_all_recent(limit=100)
+all_reviews = dicts_to_reviews(all_reviews_data)
+
+# Фильтруем по типу
+if filter_type == "Только комментарии":
+    recent_reviews = [r for r in all_reviews if r.comment_type == "comment"]
+elif filter_type == "Только рецензии":
+    recent_reviews = [r for r in all_reviews if r.comment_type == "review"]
+else:
+    recent_reviews = all_reviews
+
+# Сортируем
+if sort_option == "По дате (новые)":
+    recent_reviews.sort(key=lambda x: x.date or "", reverse=True)
+elif sort_option == "По дате (старые)":
+    recent_reviews.sort(key=lambda x: x.date or "")
+elif sort_option == "По лайкам (больше)":
+    recent_reviews.sort(key=lambda x: x.likes_count or 0, reverse=True)
+elif sort_option == "По лайкам (меньше)":
+    recent_reviews.sort(key=lambda x: x.likes_count or 0)
+
+# Ограничиваем до 10
+recent_reviews = recent_reviews[:10]
 
 if recent_reviews:
     for review in recent_reviews:
@@ -115,7 +152,20 @@ if recent_reviews:
                 
                 # Текст отзыва
                 if review.text:
-                    st.write(review.text)
+                    # Очищаем текст от возможных артефактов парсинга
+                    text = review.text.strip()
+                    # Удаляем фразы интерфейса, если они попали в текст
+                    interface_phrases = [
+                        'сортировать повремени', 'по убываниювремени', 'по возрастаниюпопулярности',
+                        'сортировать по', 'по времени', 'по убыванию', 'по возрастанию'
+                    ]
+                    for phrase in interface_phrases:
+                        text = text.replace(phrase, '').strip()
+                    
+                    if text and len(text) > 5:
+                        st.write(text)
+                    else:
+                        st.write("*Отзыв без текста*")
                 else:
                     st.write("*Отзыв без текста*")
             

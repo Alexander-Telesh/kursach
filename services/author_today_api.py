@@ -361,8 +361,32 @@ class AuthorToday:
                             )
                             
                             # Извлекаем текст комментария
-                            text_elem = elem.select_one('.comment-text, .text, [class*="text"], [class*="content"]')
-                            text = text_elem.get_text(strip=True) if text_elem else elem.get_text(strip=True)
+                            # Исключаем элементы интерфейса (селекторы, кнопки, навигацию)
+                            excluded_selectors = [
+                                'select', 'option', 'button', '.sort', '.filter',
+                                '[class*="sort"]', '[class*="filter"]', '[class*="dropdown"]',
+                                'nav', '.navigation', '.pagination'
+                            ]
+                            
+                            # Удаляем элементы интерфейса перед извлечением текста
+                            elem_copy = BeautifulSoup(str(elem), 'html.parser')
+                            for excl_sel in excluded_selectors:
+                                for excl_elem in elem_copy.select(excl_sel):
+                                    excl_elem.decompose()
+                            
+                            text_elem = elem_copy.select_one('.comment-text, .text, [class*="text"], [class*="content"]')
+                            text = text_elem.get_text(strip=True) if text_elem else elem_copy.get_text(strip=True)
+                            
+                            # Фильтруем текст от фраз интерфейса
+                            interface_phrases = [
+                                'сортировать', 'по времени', 'по убыванию', 'по возрастанию',
+                                'популярности', 'сортировка', 'фильтр', 'выбрать'
+                            ]
+                            text_lower = text.lower()
+                            for phrase in interface_phrases:
+                                if phrase in text_lower and len(text) < 200:  # Короткие тексты с фразами интерфейса - пропускаем
+                                    text = ""
+                                    break
                             
                             # Извлекаем автора
                             author_elem = elem.select_one(
@@ -479,8 +503,32 @@ class AuthorToday:
                             )
                             
                             # Извлекаем текст рецензии
-                            text_elem = elem.select_one('.review-text, .text, [class*="text"], [class*="content"]')
-                            text = text_elem.get_text(strip=True) if text_elem else elem.get_text(strip=True)
+                            # Исключаем элементы интерфейса
+                            excluded_selectors = [
+                                'select', 'option', 'button', '.sort', '.filter',
+                                '[class*="sort"]', '[class*="filter"]', '[class*="dropdown"]',
+                                'nav', '.navigation', '.pagination'
+                            ]
+                            
+                            # Удаляем элементы интерфейса перед извлечением текста
+                            elem_copy = BeautifulSoup(str(elem), 'html.parser')
+                            for excl_sel in excluded_selectors:
+                                for excl_elem in elem_copy.select(excl_sel):
+                                    excl_elem.decompose()
+                            
+                            text_elem = elem_copy.select_one('.review-text, .text, [class*="text"], [class*="content"]')
+                            text = text_elem.get_text(strip=True) if text_elem else elem_copy.get_text(strip=True)
+                            
+                            # Фильтруем текст от фраз интерфейса
+                            interface_phrases = [
+                                'сортировать', 'по времени', 'по убыванию', 'по возрастанию',
+                                'популярности', 'сортировка', 'фильтр', 'выбрать'
+                            ]
+                            text_lower = text.lower()
+                            for phrase in interface_phrases:
+                                if phrase in text_lower and len(text) < 200:
+                                    text = ""
+                                    break
                             
                             # Рецензии обычно длиннее комментариев - проверяем длину
                             if len(text) < 100:  # Пропускаем короткие тексты (это скорее комментарии)
