@@ -13,7 +13,8 @@ class Book:
         self.series_order = data.get("series_order")
         self.fb2_file_path = data.get("fb2_file_path")
         self.litres_book_id = data.get("litres_book_id")
-        self.author_today_work_id = data.get("author_today_work_id")
+        self.fantlab_work_id = data.get("fantlab_work_id")
+        self.fantlab_series_id = data.get("fantlab_series_id")
         self.created_at = data.get("created_at")
         self.updated_at = data.get("updated_at")
         self._data = data

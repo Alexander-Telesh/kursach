@@ -83,25 +83,23 @@ def create_env_file():
     
     print()
     print("=" * 70)
-    print("ШАГ 2: Данные AuthorToday API (опционально)")
+    print("ШАГ 2: Данные FantLab API (опционально)")
     print("=" * 70)
     print()
-    print("Для работы с AuthorToday API нужны логин и пароль от аккаунта.")
-    print("Если у вас их нет, просто нажмите Enter для всех полей.")
-    print("Подробнее: см. AUTHORTODAY_API_SETUP.md")
+    print("Для работы с FantLab API может потребоваться API ключ.")
+    print("Если у вас его нет, просто нажмите Enter для всех полей.")
+    print("Подробнее: https://github.com/crealist/FantLab-API/tree/master/Docs")
     print()
     
-    authortoday_api_url = input("AUTHORTODAY_API_URL (по умолчанию: https://api.author.today): ").strip()
-    if not authortoday_api_url:
-        authortoday_api_url = "https://api.author.today"
+    fantlab_api_url = input("FANTLAB_API_URL (по умолчанию: https://api.fantlab.ru): ").strip()
+    if not fantlab_api_url:
+        fantlab_api_url = "https://api.fantlab.ru"
     
-    authortoday_web_url = input("AUTHORTODAY_WEB_URL (по умолчанию: https://author.today): ").strip()
-    if not authortoday_web_url:
-        authortoday_web_url = "https://author.today"
+    fantlab_web_url = input("FANTLAB_WEB_URL (по умолчанию: https://fantlab.ru): ").strip()
+    if not fantlab_web_url:
+        fantlab_web_url = "https://fantlab.ru"
     
-    authortoday_login = input("AUTHORTODAY_LOGIN (логин от AuthorToday, или Enter для пропуска): ").strip()
-    authortoday_password = input("AUTHORTODAY_PASSWORD (пароль от AuthorToday, или Enter для пропуска): ").strip()
-    authortoday_token = input("AUTHORTODAY_TOKEN (оставьте пустым, получается автоматически): ").strip()
+    fantlab_api_key = input("FANTLAB_API_KEY (API ключ от FantLab, или Enter для пропуска): ").strip()
     
     # Создание содержимого файла
     env_content = f"""# Supabase Configuration
@@ -109,12 +107,10 @@ SUPABASE_URL={supabase_url}
 SUPABASE_KEY={supabase_key}
 SUPABASE_DB_URL={supabase_db_url}
 
-# AuthorToday API Configuration
-AUTHORTODAY_API_URL={authortoday_api_url}
-AUTHORTODAY_WEB_URL={authortoday_web_url}
-AUTHORTODAY_LOGIN={authortoday_login}
-AUTHORTODAY_PASSWORD={authortoday_password}
-AUTHORTODAY_TOKEN={authortoday_token}
+# FantLab API Configuration
+FANTLAB_API_URL={fantlab_api_url}
+FANTLAB_WEB_URL={fantlab_web_url}
+FANTLAB_API_KEY={fantlab_api_key}
 """
     
     # Показываем предпросмотр

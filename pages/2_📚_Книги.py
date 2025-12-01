@@ -5,7 +5,7 @@ from datetime import datetime
 from database.repository_supabase import BookRepositorySupabase, ReviewRepositorySupabase
 from database.helpers import dict_to_book, dicts_to_books, dicts_to_reviews
 from services.fb2_parser import FB2Parser
-from services.author_today_api import AuthorToday, sync_reviews_from_author_today
+from services.fantlab_api import FantLab, sync_reviews_from_fantlab
 from utils.config import Config
 
 st.title("📚 Книги серии 'Стеллар'")
@@ -139,50 +139,72 @@ else:
     
     st.markdown("---")
     
-    # Информация с AuthorToday
-    if selected_book.author_today_work_id:
-        st.header("📊 Информация с AuthorToday")
+    # Информация с FantLab
+    if selected_book.fantlab_work_id:
+        st.header("📊 Информация с FantLab")
         
         col1, col2 = st.columns([3, 1])
         
         with col2:
-            if st.button("🔄 Обновить лайки", key=f"update_likes_{selected_book.id}"):
-                with st.spinner("Обновление лайков..."):
-                    result = sync_reviews_from_author_today(book_id=selected_book.id, update_likes_only=True)
+            if st.button("🔄 Обновить данные", key=f"update_fantlab_{selected_book.id}"):
+                with st.spinner("Обновление данных..."):
+                    result = sync_reviews_from_fantlab(book_id=selected_book.id)
                     if result.get("success"):
-                        st.success(f"✅ Обновлено лайков: {result.get('likes_updated', 0)}")
+                        st.success(f"✅ Обновлено: {result.get('reviews', 0)} отзывов")
                         st.rerun()
                     else:
                         st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
         
-        # Получаем информацию о работе
+        # Получаем информацию о произведении
         try:
-            api = AuthorToday()
-            login = Config.AUTHORTODAY_LOGIN
-            password = Config.AUTHORTODAY_PASSWORD
+            api = FantLab()
+            work_info = api.get_work_info(selected_book.fantlab_work_id)
             
-            if login and password:
-                login_result = api.login(login, password)
-                if "token" in login_result:
-                    work_info = api.get_work_info(selected_book.author_today_work_id)
-                    
-                    if "error" not in work_info:
-                        # Аннотация
-                        if work_info.get("annotation"):
-                            with st.expander("📝 Аннотация с AuthorToday"):
-                                st.write(work_info["annotation"])
-                        
-                        # Статистика
-                        stats = work_info.get("statistics", {})
-                        if stats:
-                            st.subheader("📈 Статистика")
-                            stats_cols = st.columns(min(len(stats), 4))
-                            for idx, (key, value) in enumerate(stats.items()):
-                                if idx < len(stats_cols):
-                                    with stats_cols[idx]:
-                                        st.metric(key.capitalize(), value)
+            if "error" not in work_info:
+                # Аннотация
+                if work_info.get("annotation"):
+                    with st.expander("📝 Аннотация с FantLab"):
+                        st.write(work_info["annotation"])
+                
+                # Оценка произведения
+                rating = work_info.get("rating", 0.0)
+                if rating > 0:
+                    st.subheader("⭐ Оценка произведения")
+                    st.metric("Средняя оценка", f"{rating:.2f}")
+                
+                # Количество отзывов
+                reviews_count = work_info.get("reviews_count", 0)
+                if reviews_count > 0:
+                    st.metric("Количество отзывов", reviews_count)
         except Exception as e:
-            st.info("Информация с AuthorToday временно недоступна")
+            st.info(f"Информация с FantLab временно недоступна: {e}")
+    
+    # Информация о цикле (если есть series_id)
+    if selected_book.fantlab_series_id:
+        try:
+            api = FantLab()
+            series_info = api.get_series_info(selected_book.fantlab_series_id)
+            
+            if "error" not in series_info:
+                st.markdown("---")
+                st.header("📚 Информация о цикле")
+                
+                # Аннотация цикла
+                if series_info.get("annotation"):
+                    with st.expander("📝 Аннотация цикла"):
+                        st.write(series_info["annotation"])
+                
+                # Оценка цикла
+                series_rating = series_info.get("rating", 0.0)
+                if series_rating > 0:
+                    st.metric("⭐ Оценка цикла", f"{series_rating:.2f}")
+                
+                # Количество отзывов на цикл
+                series_reviews_count = series_info.get("reviews_count", 0)
+                if series_reviews_count > 0:
+                    st.metric("Отзывов на цикл", series_reviews_count)
+        except Exception as e:
+            pass  # Тихо игнорируем ошибки для цикла
     
     st.markdown("---")
     
@@ -204,11 +226,11 @@ else:
             key=f"filter_{selected_book.id}"
         )
     with col3:
-        if st.button("🔄 Обновить с AuthorToday", key=f"sync_{selected_book.id}"):
-            with st.spinner("Синхронизация с AuthorToday..."):
-                result = sync_reviews_from_author_today(book_id=selected_book.id)
+        if st.button("🔄 Обновить с FantLab", key=f"sync_{selected_book.id}"):
+            with st.spinner("Синхронизация с FantLab..."):
+                result = sync_reviews_from_fantlab(book_id=selected_book.id)
                 if result.get("success"):
-                    st.success(f"✅ Обновлено: {result.get('comments', 0)} комментариев, {result.get('reviews', 0)} рецензий")
+                    st.success(f"✅ Обновлено: {result.get('reviews', 0)} отзывов")
                     st.rerun()
                 else:
                     st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
@@ -279,16 +301,16 @@ else:
                         st.write("*Комментарий без текста*")
                 
                 with col2:
-                    likes_display = comment.likes_count if comment.likes_count else 0
+                    likes_display = comment.likes_count if comment.likes_count is not None else 0
                     st.metric("❤️", likes_display)
                 
                 st.markdown("---")
     elif filter_type == "Только комментарии":
-        st.info("Комментарии не найдены. Обновите данные с AuthorToday.")
+        st.info("Комментарии не найдены. Обновите данные с FantLab.")
     
     # Рецензии
     if reviews:
-        st.subheader("📄 Рецензии")
+        st.subheader(f"📄 Рецензии ({len(reviews)})")
         for review in reviews:
             with st.container():
                 col1, col2 = st.columns([4, 1])
@@ -326,12 +348,12 @@ else:
                         st.write("*Рецензия без текста*")
                 
                 with col2:
-                    likes_display = review.likes_count if review.likes_count else 0
+                    likes_display = review.likes_count if review.likes_count is not None else 0
                     st.metric("❤️", likes_display)
                 
                 st.markdown("---")
     elif filter_type == "Только рецензии":
-        st.info("Рецензии не найдены. Обновите данные с AuthorToday.")
+        st.info("Рецензии не найдены. Обновите данные с FantLab.")
     
     if not comments and not reviews and filter_type == "Все":
-        st.info("Пока нет комментариев и рецензий. Обновите данные с AuthorToday.")
+        st.info("Пока нет комментариев и рецензий. Обновите данные с FantLab.")

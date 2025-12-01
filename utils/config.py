@@ -58,11 +58,9 @@ class ConfigMeta(type):
             'SUPABASE_URL': ('SUPABASE_URL', ''),
             'SUPABASE_KEY': ('SUPABASE_KEY', ''),
             'SUPABASE_DB_URL': ('SUPABASE_DB_URL', ''),
-            'AUTHORTODAY_API_URL': ('AUTHORTODAY_API_URL', 'https://api.author.today'),
-            'AUTHORTODAY_WEB_URL': ('AUTHORTODAY_WEB_URL', 'https://author.today'),
-            'AUTHORTODAY_LOGIN': ('AUTHORTODAY_LOGIN', ''),
-            'AUTHORTODAY_PASSWORD': ('AUTHORTODAY_PASSWORD', ''),
-            'AUTHORTODAY_TOKEN': ('AUTHORTODAY_TOKEN', ''),
+            'FANTLAB_API_URL': ('FANTLAB_API_URL', 'https://api.fantlab.ru'),
+            'FANTLAB_WEB_URL': ('FANTLAB_WEB_URL', 'https://fantlab.ru'),
+            'FANTLAB_API_KEY': ('FANTLAB_API_KEY', ''),
         }
         
         if name in config_map:

@@ -28,6 +28,13 @@ class BookRepositorySupabase:
         return response.data[0] if response.data else None
     
     @staticmethod
+    def get_by_fantlab_work_id(work_id: int) -> Optional[Dict]:
+        """Получить книгу по ID из FantLab."""
+        supabase = get_supabase_client()
+        response = supabase.table("books").select("*").eq("fantlab_work_id", work_id).execute()
+        return response.data[0] if response.data else None
+    
+    @staticmethod
     def search(query: str) -> List[Dict]:
         """Поиск книг по запросу (простой поиск через ilike)."""
         if not query or not query.strip():
