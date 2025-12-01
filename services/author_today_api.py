@@ -332,21 +332,78 @@ class AuthorToday:
                 response = requests.get(url, headers=self.headers, timeout=10)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
-                    # Парсим комментарии со страницы
-                    comment_elements = soup.select('.comment, [class*="comment"]')
+                    # Пробуем разные селекторы для комментариев
+                    comment_selectors = [
+                        '.comment-item',
+                        '.comment',
+                        '[data-comment-id]',
+                        '[class*="Comment"]',
+                        '[class*="comment"]',
+                        'div[class*="comment"]'
+                    ]
+                    
+                    comment_elements = []
+                    for selector in comment_selectors:
+                        elements = soup.select(selector)
+                        if elements:
+                            comment_elements = elements
+                            break
+                    
                     for elem in comment_elements:
-                        comment = {
-                            "id": elem.get('data-id') or elem.get('id'),
-                            "author_name": "",
-                            "text": elem.get_text(strip=True),
-                            "date": None,
-                            "likes_count": 0
-                        }
-                        # Пытаемся извлечь автора
-                        author_elem = elem.select_one('.author, [class*="author"]')
-                        if author_elem:
-                            comment["author_name"] = author_elem.get_text(strip=True)
-                        comments.append(comment)
+                        try:
+                            # Извлекаем ID
+                            comment_id = (
+                                elem.get('data-comment-id') or 
+                                elem.get('data-id') or 
+                                elem.get('id') or
+                                elem.get('data-commentId') or
+                                ""
+                            )
+                            
+                            # Извлекаем текст комментария
+                            text_elem = elem.select_one('.comment-text, .text, [class*="text"], [class*="content"]')
+                            text = text_elem.get_text(strip=True) if text_elem else elem.get_text(strip=True)
+                            
+                            # Извлекаем автора
+                            author_elem = elem.select_one(
+                                '.author, .user-name, .username, [class*="author"], [class*="user"], [class*="name"]'
+                            )
+                            author_name = author_elem.get_text(strip=True) if author_elem else "Анонимный читатель"
+                            
+                            # Извлекаем дату
+                            date_elem = elem.select_one('.date, .time, [class*="date"], [class*="time"]')
+                            date_str = date_elem.get_text(strip=True) if date_elem else None
+                            
+                            # Извлекаем лайки
+                            likes_elem = elem.select_one(
+                                '.likes, .like-count, [class*="like"], [data-likes], [data-like-count]'
+                            )
+                            likes_count = 0
+                            if likes_elem:
+                                likes_text = likes_elem.get_text(strip=True)
+                                import re
+                                numbers = re.findall(r'\d+', likes_text)
+                                if numbers:
+                                    likes_count = int(numbers[0])
+                                else:
+                                    likes_attr = likes_elem.get('data-likes') or likes_elem.get('data-like-count')
+                                    if likes_attr:
+                                        likes_count = int(likes_attr)
+                            
+                            if text and len(text) > 5:  # Минимальная длина комментария
+                                comment = {
+                                    "id": str(comment_id) if comment_id else f"comment_{len(comments)}",
+                                    "author_name": author_name,
+                                    "text": text,
+                                    "date": date_str,
+                                    "likes_count": likes_count
+                                }
+                                comments.append(comment)
+                        except Exception as e:
+                            print(f"⚠️  Ошибка обработки элемента комментария: {e}")
+                            continue
+                    
+                    print(f"   📝 Парсинг веб-страницы: найдено {len(comments)} комментариев")
             except Exception as e:
                 print(f"⚠️  Ошибка парсинга комментариев: {e}")
         
@@ -393,21 +450,82 @@ class AuthorToday:
                 response = requests.get(url, headers=self.headers, timeout=10)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
-                    # Парсим рецензии со страницы (обычно это более длинные тексты)
-                    review_elements = soup.select('.review, [class*="review"]')
+                    # Пробуем разные селекторы для рецензий
+                    review_selectors = [
+                        '.review-item',
+                        '.review',
+                        '[data-review-id]',
+                        '[class*="Review"]',
+                        '[class*="review"]',
+                        'div[class*="review"]'
+                    ]
+                    
+                    review_elements = []
+                    for selector in review_selectors:
+                        elements = soup.select(selector)
+                        if elements:
+                            review_elements = elements
+                            break
+                    
                     for elem in review_elements:
-                        review = {
-                            "id": elem.get('data-id') or elem.get('id'),
-                            "author_name": "",
-                            "text": elem.get_text(strip=True),
-                            "date": None,
-                            "likes_count": 0
-                        }
-                        # Пытаемся извлечь автора
-                        author_elem = elem.select_one('.author, [class*="author"]')
-                        if author_elem:
-                            review["author_name"] = author_elem.get_text(strip=True)
-                        reviews.append(review)
+                        try:
+                            # Извлекаем ID
+                            review_id = (
+                                elem.get('data-review-id') or 
+                                elem.get('data-id') or 
+                                elem.get('id') or
+                                elem.get('data-reviewId') or
+                                ""
+                            )
+                            
+                            # Извлекаем текст рецензии
+                            text_elem = elem.select_one('.review-text, .text, [class*="text"], [class*="content"]')
+                            text = text_elem.get_text(strip=True) if text_elem else elem.get_text(strip=True)
+                            
+                            # Рецензии обычно длиннее комментариев - проверяем длину
+                            if len(text) < 100:  # Пропускаем короткие тексты (это скорее комментарии)
+                                continue
+                            
+                            # Извлекаем автора
+                            author_elem = elem.select_one(
+                                '.author, .user-name, .username, [class*="author"], [class*="user"], [class*="name"]'
+                            )
+                            author_name = author_elem.get_text(strip=True) if author_elem else "Анонимный читатель"
+                            
+                            # Извлекаем дату
+                            date_elem = elem.select_one('.date, .time, [class*="date"], [class*="time"]')
+                            date_str = date_elem.get_text(strip=True) if date_elem else None
+                            
+                            # Извлекаем лайки
+                            likes_elem = elem.select_one(
+                                '.likes, .like-count, [class*="like"], [data-likes], [data-like-count]'
+                            )
+                            likes_count = 0
+                            if likes_elem:
+                                likes_text = likes_elem.get_text(strip=True)
+                                import re
+                                numbers = re.findall(r'\d+', likes_text)
+                                if numbers:
+                                    likes_count = int(numbers[0])
+                                else:
+                                    likes_attr = likes_elem.get('data-likes') or likes_elem.get('data-like-count')
+                                    if likes_attr:
+                                        likes_count = int(likes_attr)
+                            
+                            if text and len(text) > 50:  # Минимальная длина рецензии
+                                review = {
+                                    "id": str(review_id) if review_id else f"review_{len(reviews)}",
+                                    "author_name": author_name,
+                                    "text": text,
+                                    "date": date_str,
+                                    "likes_count": likes_count
+                                }
+                                reviews.append(review)
+                        except Exception as e:
+                            print(f"⚠️  Ошибка обработки элемента рецензии: {e}")
+                            continue
+                    
+                    print(f"   📄 Парсинг веб-страницы: найдено {len(reviews)} рецензий")
             except Exception as e:
                 print(f"⚠️  Ошибка парсинга рецензий: {e}")
         
@@ -603,12 +721,15 @@ def sync_reviews_from_author_today(book_id: Optional[int] = None, update_likes_o
                     )
                 }
                 
-                if comment_dict["text"]:
+                if comment_dict["text"] and len(comment_dict["text"].strip()) > 0:
                     try:
                         ReviewRepositorySupabase.create_or_update(comment_dict)
                         stats["comments"] += 1
+                        print(f"      ✅ Сохранен комментарий от {comment_dict['author_name']}")
                     except Exception as e:
                         print(f"   ⚠️  Ошибка при сохранении комментария: {e}")
+                        import traceback
+                        traceback.print_exc()
             
             # Получаем рецензии
             reviews = api.get_work_reviews(work_id)
@@ -643,12 +764,15 @@ def sync_reviews_from_author_today(book_id: Optional[int] = None, update_likes_o
                     )
                 }
                 
-                if review_dict["text"]:
+                if review_dict["text"] and len(review_dict["text"].strip()) > 0:
                     try:
                         ReviewRepositorySupabase.create_or_update(review_dict)
                         stats["reviews"] += 1
+                        print(f"      ✅ Сохранена рецензия от {review_dict['author_name']}")
                     except Exception as e:
                         print(f"   ⚠️  Ошибка при сохранении рецензии: {e}")
+                        import traceback
+                        traceback.print_exc()
         else:
             # Обновляем только лайки для существующих записей
             existing_reviews = ReviewRepositorySupabase.get_by_book_id(book_id)

@@ -118,7 +118,8 @@ class ReviewRepositorySupabase:
         if comment_type:
             query = query.eq("comment_type", comment_type)
         
-        response = query.order("date", desc=True).execute()
+        # Сортируем по дате (новые сначала), если дата есть, иначе по ID
+        response = query.order("date", desc=True).order("id", desc=True).execute()
         return response.data if response.data else []
     
     @staticmethod

@@ -189,9 +189,21 @@ else:
     # Комментарии и рецензии
     st.header("💬 Комментарии и рецензии")
     
-    # Кнопка обновления
-    col1, col2 = st.columns([3, 1])
+    # Кнопка обновления и сортировка
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        sort_option = st.selectbox(
+            "Сортировка:",
+            ["По дате (новые)", "По дате (старые)", "По лайкам (больше)", "По лайкам (меньше)"],
+            key=f"sort_{selected_book.id}"
+        )
     with col2:
+        filter_type = st.selectbox(
+            "Фильтр:",
+            ["Все", "Только комментарии", "Только рецензии"],
+            key=f"filter_{selected_book.id}"
+        )
+    with col3:
         if st.button("🔄 Обновить с AuthorToday", key=f"sync_{selected_book.id}"):
             with st.spinner("Синхронизация с AuthorToday..."):
                 result = sync_reviews_from_author_today(book_id=selected_book.id)
@@ -201,12 +213,35 @@ else:
                 else:
                     st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
     
-    # Комментарии
-    comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "comment")
-    comments = dicts_to_reviews(comments_data)
+    # Получаем все данные
+    all_comments_data = ReviewRepositorySupabase.get_by_book_id(selected_book.id)
+    all_items = dicts_to_reviews(all_comments_data)
     
+    # Фильтруем по типу
+    if filter_type == "Только комментарии":
+        items = [item for item in all_items if item.comment_type == "comment"]
+    elif filter_type == "Только рецензии":
+        items = [item for item in all_items if item.comment_type == "review"]
+    else:
+        items = all_items
+    
+    # Сортируем
+    if sort_option == "По дате (новые)":
+        items.sort(key=lambda x: x.date or "", reverse=True)
+    elif sort_option == "По дате (старые)":
+        items.sort(key=lambda x: x.date or "")
+    elif sort_option == "По лайкам (больше)":
+        items.sort(key=lambda x: x.likes_count or 0, reverse=True)
+    elif sort_option == "По лайкам (меньше)":
+        items.sort(key=lambda x: x.likes_count or 0)
+    
+    # Разделяем на комментарии и рецензии для отображения
+    comments = [item for item in items if item.comment_type == "comment"]
+    reviews = [item for item in items if item.comment_type == "review"]
+    
+    # Комментарии
     if comments:
-        st.subheader("💬 Комментарии")
+        st.subheader(f"💬 Комментарии ({len(comments)})")
         for comment in comments:
             with st.container():
                 col1, col2 = st.columns([4, 1])
@@ -231,15 +266,14 @@ else:
                         st.write("*Комментарий без текста*")
                 
                 with col2:
-                    if comment.likes_count and comment.likes_count > 0:
-                        st.metric("❤️", comment.likes_count)
+                    likes_display = comment.likes_count if comment.likes_count else 0
+                    st.metric("❤️", likes_display)
                 
                 st.markdown("---")
+    elif filter_type == "Только комментарии":
+        st.info("Комментарии не найдены. Обновите данные с AuthorToday.")
     
     # Рецензии
-    reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "review")
-    reviews = dicts_to_reviews(reviews_data)
-    
     if reviews:
         st.subheader("📄 Рецензии")
         for review in reviews:
@@ -266,10 +300,12 @@ else:
                         st.write("*Рецензия без текста*")
                 
                 with col2:
-                    if review.likes_count and review.likes_count > 0:
-                        st.metric("❤️", review.likes_count)
+                    likes_display = review.likes_count if review.likes_count else 0
+                    st.metric("❤️", likes_display)
                 
                 st.markdown("---")
+    elif filter_type == "Только рецензии":
+        st.info("Рецензии не найдены. Обновите данные с AuthorToday.")
     
-    if not comments and not reviews:
+    if not comments and not reviews and filter_type == "Все":
         st.info("Пока нет комментариев и рецензий. Обновите данные с AuthorToday.")

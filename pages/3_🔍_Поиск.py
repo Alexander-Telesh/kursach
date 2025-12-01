@@ -1,14 +1,14 @@
 """Страница поиска по базе знаний."""
 import streamlit as st
 from database.repository_supabase import BookRepositorySupabase, ReviewRepositorySupabase
-from database.helpers import dict_to_book, dicts_to_books
+from database.helpers import dict_to_book, dicts_to_books, dicts_to_reviews
 from services.search import search_books
 
 st.title("🔍 Поиск по базе знаний")
 st.markdown("---")
 
 # Поисковая форма
-col1, col2 = st.columns([4, 1])
+col1, col2, col3 = st.columns([3, 1, 1])
 
 with col1:
     search_query = st.text_input(
@@ -20,12 +20,37 @@ with col1:
 with col2:
     use_full_text = st.checkbox("Полнотекстовый поиск", value=True)
 
+with col3:
+    search_in_reviews = st.checkbox("Искать в рецензиях", value=False)
+
 # Кнопка поиска
 if st.button("🔍 Найти", type="primary") or search_query:
     if search_query and search_query.strip():
         with st.spinner("Поиск..."):
             results_data = search_books(search_query, use_full_text=use_full_text)
             results = dicts_to_books(results_data)
+            
+            # Если включен поиск в рецензиях
+            if search_in_reviews:
+                all_books_data = BookRepositorySupabase.get_all()
+                query_lower = search_query.lower().strip()
+                existing_ids = {r.id for r in results}
+                
+                for book_data in all_books_data:
+                    book_id = book_data.get("id")
+                    # Пропускаем, если книга уже в результатах
+                    if any(r.id == book_id for r in results):
+                        continue
+                    
+                    # Ищем в рецензиях этой книги
+                    reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(book_id, "review")
+                    if reviews_data:
+                        for review_data in reviews_data:
+                            review_text = (review_data.get("text") or "").lower()
+                            if query_lower in review_text:
+                                # Добавляем книгу в результаты
+                                results.append(dict_to_book(book_data))
+                                break
         
         if results:
             st.success(f"Найдено книг: {len(results)}")
