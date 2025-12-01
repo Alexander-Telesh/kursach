@@ -329,103 +329,178 @@ class AuthorToday:
         if not comments:
             try:
                 url = f"{self.web_api}/work/{work_id}"
-                response = requests.get(url, headers=self.headers, timeout=10)
+                print(f"   🌐 Загрузка страницы: {url}")
+                response = requests.get(url, headers=self.headers, timeout=15)
                 if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    # Пробуем разные селекторы для комментариев
-                    comment_selectors = [
-                        '.comment-item',
-                        '.comment',
-                        '[data-comment-id]',
-                        '[class*="Comment"]',
-                        '[class*="comment"]',
-                        'div[class*="comment"]'
+                    # Пробуем найти JSON данные в HTML (многие сайты встраивают данные в script теги)
+                    import json
+                    import re
+                    
+                    # Ищем JSON данные в script тегах
+                    json_patterns = [
+                        r'window\.__INITIAL_STATE__\s*=\s*({.+?});',
+                        r'window\.__DATA__\s*=\s*({.+?});',
+                        r'var\s+comments\s*=\s*(\[.+?\]);',
+                        r'"comments"\s*:\s*(\[.+?\])',
                     ]
                     
-                    comment_elements = []
-                    for selector in comment_selectors:
-                        elements = soup.select(selector)
-                        if elements:
-                            comment_elements = elements
-                            break
+                    html_text = response.text
+                    for pattern in json_patterns:
+                        matches = re.findall(pattern, html_text, re.DOTALL)
+                        for match in matches:
+                            try:
+                                data = json.loads(match)
+                                if isinstance(data, dict):
+                                    # Ищем комментарии в структуре данных
+                                    found_comments = data.get("comments") or data.get("items") or []
+                                    if found_comments:
+                                        print(f"   ✅ Найдено {len(found_comments)} комментариев в JSON данных")
+                                        comments = found_comments
+                                        break
+                            except:
+                                continue
                     
-                    for elem in comment_elements:
-                        try:
-                            # Извлекаем ID
-                            comment_id = (
-                                elem.get('data-comment-id') or 
-                                elem.get('data-id') or 
-                                elem.get('id') or
-                                elem.get('data-commentId') or
-                                ""
-                            )
-                            
-                            # Извлекаем текст комментария
-                            # Исключаем элементы интерфейса (селекторы, кнопки, навигацию)
-                            excluded_selectors = [
-                                'select', 'option', 'button', '.sort', '.filter',
-                                '[class*="sort"]', '[class*="filter"]', '[class*="dropdown"]',
-                                'nav', '.navigation', '.pagination'
-                            ]
-                            
-                            # Удаляем элементы интерфейса перед извлечением текста
-                            elem_copy = BeautifulSoup(str(elem), 'html.parser')
-                            for excl_sel in excluded_selectors:
-                                for excl_elem in elem_copy.select(excl_sel):
-                                    excl_elem.decompose()
-                            
-                            text_elem = elem_copy.select_one('.comment-text, .text, [class*="text"], [class*="content"]')
-                            text = text_elem.get_text(strip=True) if text_elem else elem_copy.get_text(strip=True)
-                            
-                            # Фильтруем текст от фраз интерфейса
-                            interface_phrases = [
-                                'сортировать', 'по времени', 'по убыванию', 'по возрастанию',
-                                'популярности', 'сортировка', 'фильтр', 'выбрать'
-                            ]
-                            text_lower = text.lower()
-                            for phrase in interface_phrases:
-                                if phrase in text_lower and len(text) < 200:  # Короткие тексты с фразами интерфейса - пропускаем
-                                    text = ""
-                                    break
-                            
-                            # Извлекаем автора
-                            author_elem = elem.select_one(
-                                '.author, .user-name, .username, [class*="author"], [class*="user"], [class*="name"]'
-                            )
-                            author_name = author_elem.get_text(strip=True) if author_elem else "Анонимный читатель"
-                            
-                            # Извлекаем дату
-                            date_elem = elem.select_one('.date, .time, [class*="date"], [class*="time"]')
-                            date_str = date_elem.get_text(strip=True) if date_elem else None
-                            
-                            # Извлекаем лайки
-                            likes_elem = elem.select_one(
-                                '.likes, .like-count, [class*="like"], [data-likes], [data-like-count]'
-                            )
-                            likes_count = 0
-                            if likes_elem:
-                                likes_text = likes_elem.get_text(strip=True)
-                                import re
-                                numbers = re.findall(r'\d+', likes_text)
-                                if numbers:
-                                    likes_count = int(numbers[0])
-                                else:
-                                    likes_attr = likes_elem.get('data-likes') or likes_elem.get('data-like-count')
-                                    if likes_attr:
-                                        likes_count = int(likes_attr)
-                            
-                            if text and len(text) > 5:  # Минимальная длина комментария
+                    if not comments:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        # Пробуем разные селекторы для комментариев
+                        comment_selectors = [
+                            '.comment-item',
+                            '.comment',
+                            '[data-comment-id]',
+                            '[class*="Comment"]',
+                            '[class*="comment"]',
+                            'div[class*="comment"]',
+                            'article[class*="comment"]',
+                            '[id*="comment"]',
+                            '.comment-block',
+                            '.comments-list .comment',
+                            '.comment-list-item'
+                        ]
+                        
+                        comment_elements = []
+                        for selector in comment_selectors:
+                            elements = soup.select(selector)
+                            if elements:
+                                print(f"   ✅ Найдено {len(elements)} элементов с селектором: {selector}")
+                                comment_elements = elements
+                                break
+                    
+                        if not comment_elements:
+                            # Если не нашли через селекторы, пробуем найти все элементы с текстом
+                            all_divs = soup.find_all(['div', 'article', 'section'], class_=re.compile(r'comment|review|feedback', re.I))
+                            if all_divs:
+                                print(f"   ✅ Найдено {len(all_divs)} потенциальных комментариев через поиск по классам")
+                                comment_elements = all_divs
+                        
+                        for elem in comment_elements:
+                            try:
+                                # Извлекаем ID
+                                comment_id = (
+                                    elem.get('data-comment-id') or 
+                                    elem.get('data-id') or 
+                                    elem.get('id') or
+                                    elem.get('data-commentId') or
+                                    ""
+                                )
+                                
+                                # Извлекаем текст комментария
+                                # Исключаем элементы интерфейса (селекторы, кнопки, навигацию)
+                                excluded_selectors = [
+                                    'select', 'option', 'button', '.sort', '.filter',
+                                    '[class*="sort"]', '[class*="filter"]', '[class*="dropdown"]',
+                                    'nav', '.navigation', '.pagination', 'script', 'style'
+                                ]
+                                
+                                # Удаляем элементы интерфейса перед извлечением текста
+                                elem_copy = BeautifulSoup(str(elem), 'html.parser')
+                                for excl_sel in excluded_selectors:
+                                    for excl_elem in elem_copy.select(excl_sel):
+                                        excl_elem.decompose()
+                                
+                                # Пробуем разные способы извлечения текста
+                                text = ""
+                                text_selectors = [
+                                    '.comment-text', '.text', '.content', '.message',
+                                    '[class*="text"]', '[class*="content"]', '[class*="message"]',
+                                    'p', '.comment-body', '.comment-content'
+                                ]
+                                
+                                for text_sel in text_selectors:
+                                    text_elem = elem_copy.select_one(text_sel)
+                                    if text_elem:
+                                        text = text_elem.get_text(strip=True)
+                                        if text and len(text) > 10:
+                                            break
+                                
+                                # Если не нашли через селекторы, берем весь текст элемента
+                                if not text or len(text) < 10:
+                                    text = elem_copy.get_text(strip=True)
+                                
+                                # Фильтруем текст от фраз интерфейса и мусора
+                                interface_phrases = [
+                                    'сортировать', 'по времени', 'по убыванию', 'по возрастанию',
+                                    'популярности', 'сортировка', 'фильтр', 'выбрать',
+                                    'комментарии', 'рецензии', 'отзывы', 'написать'
+                                ]
+                                text_lower = text.lower()
+                                for phrase in interface_phrases:
+                                    if phrase in text_lower and len(text) < 200:
+                                        text = ""
+                                        break
+                                
+                                # Пропускаем слишком короткие или слишком длинные тексты (вероятно, не комментарии)
+                                if not text or len(text) < 10 or len(text) > 5000:
+                                    continue
+                                
+                                # Извлекаем автора
+                                author_selectors = [
+                                    '.author', '.user-name', '.username', '.user',
+                                    '[class*="author"]', '[class*="user"]', '[class*="name"]',
+                                    '[data-author]', '[data-user]'
+                                ]
+                                author_name = "Анонимный читатель"
+                                for auth_sel in author_selectors:
+                                    author_elem = elem.select_one(auth_sel)
+                                    if author_elem:
+                                        author_name = author_elem.get_text(strip=True)
+                                        if author_name and len(author_name) < 100:
+                                            break
+                                
+                                # Извлекаем дату
+                                date_elem = elem.select_one('.date, .time, [class*="date"], [class*="time"], [datetime]')
+                                date_str = None
+                                if date_elem:
+                                    date_str = date_elem.get('datetime') or date_elem.get('data-date') or date_elem.get_text(strip=True)
+                                
+                                # Извлекаем лайки
+                                likes_elem = elem.select_one(
+                                    '.likes, .like-count, [class*="like"], [data-likes], [data-like-count]'
+                                )
+                                likes_count = 0
+                                if likes_elem:
+                                    likes_text = likes_elem.get_text(strip=True)
+                                    numbers = re.findall(r'\d+', likes_text)
+                                    if numbers:
+                                        likes_count = int(numbers[0])
+                                    else:
+                                        likes_attr = likes_elem.get('data-likes') or likes_elem.get('data-like-count')
+                                        if likes_attr:
+                                            try:
+                                                likes_count = int(likes_attr)
+                                            except:
+                                                pass
+                                
                                 comment = {
-                                    "id": str(comment_id) if comment_id else f"comment_{len(comments)}",
+                                    "id": str(comment_id) if comment_id else f"comment_{len(comments)}_{hash(text[:50])}",
                                     "author_name": author_name,
                                     "text": text,
                                     "date": date_str,
                                     "likes_count": likes_count
                                 }
                                 comments.append(comment)
-                        except Exception as e:
-                            print(f"⚠️  Ошибка обработки элемента комментария: {e}")
-                            continue
+                            except Exception as e:
+                                print(f"⚠️  Ошибка обработки элемента комментария: {e}")
+                                continue
                     
                     print(f"   📝 Парсинг веб-страницы: найдено {len(comments)} комментариев")
             except Exception as e:
@@ -471,107 +546,173 @@ class AuthorToday:
         if not reviews:
             try:
                 url = f"{self.web_api}/work/{work_id}"
-                response = requests.get(url, headers=self.headers, timeout=10)
+                print(f"   🌐 Загрузка страницы для рецензий: {url}")
+                response = requests.get(url, headers=self.headers, timeout=15)
                 if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    # Пробуем разные селекторы для рецензий
-                    review_selectors = [
-                        '.review-item',
-                        '.review',
-                        '[data-review-id]',
-                        '[class*="Review"]',
-                        '[class*="review"]',
-                        'div[class*="review"]'
+                    # Пробуем найти JSON данные в HTML
+                    import json
+                    import re
+                    
+                    json_patterns = [
+                        r'window\.__INITIAL_STATE__\s*=\s*({.+?});',
+                        r'window\.__DATA__\s*=\s*({.+?});',
+                        r'var\s+reviews\s*=\s*(\[.+?\]);',
+                        r'"reviews"\s*:\s*(\[.+?\])',
                     ]
                     
-                    review_elements = []
-                    for selector in review_selectors:
-                        elements = soup.select(selector)
-                        if elements:
-                            review_elements = elements
-                            break
-                    
-                    for elem in review_elements:
-                        try:
-                            # Извлекаем ID
-                            review_id = (
-                                elem.get('data-review-id') or 
-                                elem.get('data-id') or 
-                                elem.get('id') or
-                                elem.get('data-reviewId') or
-                                ""
-                            )
-                            
-                            # Извлекаем текст рецензии
-                            # Исключаем элементы интерфейса
-                            excluded_selectors = [
-                                'select', 'option', 'button', '.sort', '.filter',
-                                '[class*="sort"]', '[class*="filter"]', '[class*="dropdown"]',
-                                'nav', '.navigation', '.pagination'
-                            ]
-                            
-                            # Удаляем элементы интерфейса перед извлечением текста
-                            elem_copy = BeautifulSoup(str(elem), 'html.parser')
-                            for excl_sel in excluded_selectors:
-                                for excl_elem in elem_copy.select(excl_sel):
-                                    excl_elem.decompose()
-                            
-                            text_elem = elem_copy.select_one('.review-text, .text, [class*="text"], [class*="content"]')
-                            text = text_elem.get_text(strip=True) if text_elem else elem_copy.get_text(strip=True)
-                            
-                            # Фильтруем текст от фраз интерфейса
-                            interface_phrases = [
-                                'сортировать', 'по времени', 'по убыванию', 'по возрастанию',
-                                'популярности', 'сортировка', 'фильтр', 'выбрать'
-                            ]
-                            text_lower = text.lower()
-                            for phrase in interface_phrases:
-                                if phrase in text_lower and len(text) < 200:
-                                    text = ""
-                                    break
-                            
-                            # Рецензии обычно длиннее комментариев - проверяем длину
-                            if len(text) < 100:  # Пропускаем короткие тексты (это скорее комментарии)
+                    html_text = response.text
+                    for pattern in json_patterns:
+                        matches = re.findall(pattern, html_text, re.DOTALL)
+                        for match in matches:
+                            try:
+                                data = json.loads(match)
+                                if isinstance(data, dict):
+                                    found_reviews = data.get("reviews") or data.get("items") or []
+                                    if found_reviews:
+                                        print(f"   ✅ Найдено {len(found_reviews)} рецензий в JSON данных")
+                                        reviews = found_reviews
+                                        break
+                            except:
                                 continue
-                            
-                            # Извлекаем автора
-                            author_elem = elem.select_one(
-                                '.author, .user-name, .username, [class*="author"], [class*="user"], [class*="name"]'
-                            )
-                            author_name = author_elem.get_text(strip=True) if author_elem else "Анонимный читатель"
-                            
-                            # Извлекаем дату
-                            date_elem = elem.select_one('.date, .time, [class*="date"], [class*="time"]')
-                            date_str = date_elem.get_text(strip=True) if date_elem else None
-                            
-                            # Извлекаем лайки
-                            likes_elem = elem.select_one(
-                                '.likes, .like-count, [class*="like"], [data-likes], [data-like-count]'
-                            )
-                            likes_count = 0
-                            if likes_elem:
-                                likes_text = likes_elem.get_text(strip=True)
-                                import re
-                                numbers = re.findall(r'\d+', likes_text)
-                                if numbers:
-                                    likes_count = int(numbers[0])
-                                else:
-                                    likes_attr = likes_elem.get('data-likes') or likes_elem.get('data-like-count')
-                                    if likes_attr:
-                                        likes_count = int(likes_attr)
-                            
-                            if text and len(text) > 50:  # Минимальная длина рецензии
+                    
+                    if not reviews:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        # Пробуем разные селекторы для рецензий
+                        review_selectors = [
+                            '.review-item',
+                            '.review',
+                            '[data-review-id]',
+                            '[class*="Review"]',
+                            '[class*="review"]',
+                            'div[class*="review"]',
+                            'article[class*="review"]',
+                            '[id*="review"]',
+                            '.review-block',
+                            '.reviews-list .review',
+                            '.review-list-item'
+                        ]
+                        
+                        review_elements = []
+                        for selector in review_selectors:
+                            elements = soup.select(selector)
+                            if elements:
+                                print(f"   ✅ Найдено {len(elements)} элементов рецензий с селектором: {selector}")
+                                review_elements = elements
+                                break
+                        
+                        if not review_elements:
+                            # Если не нашли через селекторы, пробуем найти все элементы с текстом
+                            all_divs = soup.find_all(['div', 'article', 'section'], class_=re.compile(r'review|recension|отзыв', re.I))
+                            if all_divs:
+                                print(f"   ✅ Найдено {len(all_divs)} потенциальных рецензий через поиск по классам")
+                                review_elements = all_divs
+                    
+                        for elem in review_elements:
+                            try:
+                                # Извлекаем ID
+                                review_id = (
+                                    elem.get('data-review-id') or 
+                                    elem.get('data-id') or 
+                                    elem.get('id') or
+                                    elem.get('data-reviewId') or
+                                    ""
+                                )
+                                
+                                # Извлекаем текст рецензии
+                                excluded_selectors = [
+                                    'select', 'option', 'button', '.sort', '.filter',
+                                    '[class*="sort"]', '[class*="filter"]', '[class*="dropdown"]',
+                                    'nav', '.navigation', '.pagination', 'script', 'style'
+                                ]
+                                
+                                elem_copy = BeautifulSoup(str(elem), 'html.parser')
+                                for excl_sel in excluded_selectors:
+                                    for excl_elem in elem_copy.select(excl_sel):
+                                        excl_elem.decompose()
+                                
+                                # Пробуем разные способы извлечения текста
+                                text = ""
+                                text_selectors = [
+                                    '.review-text', '.text', '.content', '.message',
+                                    '[class*="text"]', '[class*="content"]', '[class*="message"]',
+                                    'p', '.review-body', '.review-content'
+                                ]
+                                
+                                for text_sel in text_selectors:
+                                    text_elem = elem_copy.select_one(text_sel)
+                                    if text_elem:
+                                        text = text_elem.get_text(strip=True)
+                                        if text and len(text) > 50:  # Рецензии должны быть длиннее
+                                            break
+                                
+                                if not text or len(text) < 50:
+                                    text = elem_copy.get_text(strip=True)
+                                
+                                # Фильтруем текст от фраз интерфейса
+                                interface_phrases = [
+                                    'сортировать', 'по времени', 'по убыванию', 'по возрастанию',
+                                    'популярности', 'сортировка', 'фильтр', 'выбрать',
+                                    'комментарии', 'рецензии', 'отзывы', 'написать'
+                                ]
+                                text_lower = text.lower()
+                                for phrase in interface_phrases:
+                                    if phrase in text_lower and len(text) < 200:
+                                        text = ""
+                                        break
+                                
+                                # Рецензии обычно длиннее комментариев - проверяем длину
+                                if not text or len(text) < 100 or len(text) > 10000:
+                                    continue
+                                
+                                # Извлекаем автора
+                                author_selectors = [
+                                    '.author', '.user-name', '.username', '.user',
+                                    '[class*="author"]', '[class*="user"]', '[class*="name"]',
+                                    '[data-author]', '[data-user]'
+                                ]
+                                author_name = "Анонимный читатель"
+                                for auth_sel in author_selectors:
+                                    author_elem = elem.select_one(auth_sel)
+                                    if author_elem:
+                                        author_name = author_elem.get_text(strip=True)
+                                        if author_name and len(author_name) < 100:
+                                            break
+                                
+                                # Извлекаем дату
+                                date_elem = elem.select_one('.date, .time, [class*="date"], [class*="time"], [datetime]')
+                                date_str = None
+                                if date_elem:
+                                    date_str = date_elem.get('datetime') or date_elem.get('data-date') or date_elem.get_text(strip=True)
+                                
+                                # Извлекаем лайки
+                                likes_elem = elem.select_one(
+                                    '.likes, .like-count, [class*="like"], [data-likes], [data-like-count]'
+                                )
+                                likes_count = 0
+                                if likes_elem:
+                                    likes_text = likes_elem.get_text(strip=True)
+                                    numbers = re.findall(r'\d+', likes_text)
+                                    if numbers:
+                                        likes_count = int(numbers[0])
+                                    else:
+                                        likes_attr = likes_elem.get('data-likes') or likes_elem.get('data-like-count')
+                                        if likes_attr:
+                                            try:
+                                                likes_count = int(likes_attr)
+                                            except:
+                                                pass
+                                
                                 review = {
-                                    "id": str(review_id) if review_id else f"review_{len(reviews)}",
+                                    "id": str(review_id) if review_id else f"review_{len(reviews)}_{hash(text[:50])}",
                                     "author_name": author_name,
                                     "text": text,
                                     "date": date_str,
                                     "likes_count": likes_count
                                 }
                                 reviews.append(review)
-                        except Exception as e:
-                            print(f"⚠️  Ошибка обработки элемента рецензии: {e}")
-                            continue
+                            except Exception as e:
+                                print(f"⚠️  Ошибка обработки элемента рецензии: {e}")
+                                continue
                     
                     print(f"   📄 Парсинг веб-страницы: найдено {len(reviews)} рецензий")
             except Exception as e:
