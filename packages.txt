@@ -1,10 +1,2 @@
-# Файл для Streamlit Cloud
-# Указывает дополнительные системные пакеты, если нужны
-# Например:
-# libxml2-dev
-# libxslt1-dev
-
-
-
-
-
+libxml2-dev
+libxslt1-dev
