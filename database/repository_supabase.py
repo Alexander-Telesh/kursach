@@ -99,40 +99,105 @@ class ReviewRepositorySupabase:
             return ReviewRepositorySupabase.get_by_book_id_and_type(book_id, comment_type)
         
         supabase = get_supabase_client()
-        response = supabase.table("reviews").select("*").eq("book_id", book_id).order("date", desc=True).execute()
-        return response.data if response.data else []
+        try:
+            response = supabase.table("reviews").select("*").eq("book_id", book_id).order("date", desc=True).execute()
+            data = response.data if response.data else []
+            # Сортируем в Python: сначала записи с датой, потом без даты
+            data.sort(key=lambda x: (
+                x.get("date") is None,  # False (0) для записей с датой, True (1) для без даты
+                x.get("date") or "",  # Сортировка по дате
+                x.get("id", 0)  # Если дата одинаковая, сортируем по ID
+            ), reverse=True)
+            return data
+        except Exception:
+            # Fallback: сортировка по ID
+            response = supabase.table("reviews").select("*").eq("book_id", book_id).order("id", desc=True).execute()
+            return response.data if response.data else []
     
     @staticmethod
     def get_all_recent(limit: int = 10) -> List[Dict]:
         """Получить последние отзывы."""
         supabase = get_supabase_client()
-        response = supabase.table("reviews").select("*").order("date", desc=True).limit(limit).execute()
-        return response.data if response.data else []
+        try:
+            # Получаем больше записей для сортировки в Python
+            response = supabase.table("reviews").select("*").order("date", desc=True).limit(limit * 2).execute()
+            data = response.data if response.data else []
+            # Сортируем в Python: сначала записи с датой, потом без даты
+            data.sort(key=lambda x: (
+                x.get("date") is None,  # False (0) для записей с датой, True (1) для без даты
+                x.get("date") or "",  # Сортировка по дате
+                x.get("id", 0)  # Если дата одинаковая, сортируем по ID
+            ), reverse=True)
+            return data[:limit]
+        except Exception:
+            # Fallback: сортировка по ID
+            response = supabase.table("reviews").select("*").order("id", desc=True).limit(limit).execute()
+            return response.data if response.data else []
     
     @staticmethod
-    def get_by_book_id_and_type(book_id: int, comment_type: str = None) -> List[Dict]:
-        """Получить отзывы/комментарии для книги, опционально фильтруя по типу."""
+    def get_by_book_id_and_type(book_id: int = None, comment_type: str = None) -> List[Dict]:
+        """Получить отзывы/комментарии для книги, опционально фильтруя по типу.
+        
+        Args:
+            book_id: ID книги. Если None, возвращает все отзывы.
+            comment_type: Тип комментария ('comment' или 'review'). Если None, возвращает все типы.
+        """
         supabase = get_supabase_client()
-        query = supabase.table("reviews").select("*").eq("book_id", book_id)
+        query = supabase.table("reviews").select("*")
+        
+        if book_id is not None:
+            query = query.eq("book_id", book_id)
         
         if comment_type:
             query = query.eq("comment_type", comment_type)
         
-        # Сортируем по дате (новые сначала), если дата есть, иначе по ID
-        response = query.order("date", desc=True).order("id", desc=True).execute()
-        return response.data if response.data else []
+        # Сортируем по дате (новые сначала)
+        # Supabase SDK не поддерживает множественные order() или nulls_last
+        # Поэтому сортируем только по date, а NULL значения обработаем в Python
+        try:
+            response = query.order("date", desc=True).execute()
+        except Exception:
+            # Fallback: сортировка по ID, если сортировка по date не работает
+            response = query.order("id", desc=True).execute()
+        
+        data = response.data if response.data else []
+        
+        # Сортируем в Python: сначала записи с датой, потом без даты
+        data.sort(key=lambda x: (
+            x.get("date") is None,  # False (0) для записей с датой, True (1) для без даты
+            x.get("date") or "",  # Сортировка по дате
+            x.get("id", 0)  # Если дата одинаковая, сортируем по ID
+        ), reverse=True)
+        
+        return data
     
     @staticmethod
     def get_by_book_id_sorted_by_likes(book_id: int, limit: int = None) -> List[Dict]:
         """Получить отзывы/комментарии для книги, отсортированные по количеству лайков."""
         supabase = get_supabase_client()
-        query = supabase.table("reviews").select("*").eq("book_id", book_id).order("likes_count", desc=True)
+        query = supabase.table("reviews").select("*").eq("book_id", book_id)
         
-        if limit:
-            query = query.limit(limit)
-        
-        response = query.execute()
-        return response.data if response.data else []
+        # Supabase SDK не поддерживает nulls_last, поэтому сортируем в Python
+        try:
+            response = query.order("likes_count", desc=True).execute()
+            data = response.data if response.data else []
+            # Сортируем в Python: сначала записи с лайками, потом без лайков
+            data.sort(key=lambda x: (
+                x.get("likes_count") is None,  # False (0) для записей с лайками, True (1) для без лайков
+                x.get("likes_count", 0)  # Сортировка по количеству лайков
+            ), reverse=True)
+            
+            if limit:
+                return data[:limit]
+            return data
+        except Exception:
+            # Fallback: получаем без сортировки и сортируем в Python
+            response = query.execute()
+            data = response.data if response.data else []
+            data.sort(key=lambda x: x.get("likes_count", 0), reverse=True)
+            if limit:
+                return data[:limit]
+            return data
     
     @staticmethod
     def get_total_likes_for_book(book_id: int) -> int:
