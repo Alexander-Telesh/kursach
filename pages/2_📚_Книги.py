@@ -276,164 +276,25 @@ else:
     
     st.markdown("---")
     
-    # Комментарии и рецензии
-    st.header("💬 Комментарии и рецензии")
+    # Ссылки на отзывы на FantLab
+    st.header("💬 Отзывы и комментарии")
     
-    # Кнопка обновления и сортировка
-    col1, col2, col3 = st.columns([2, 2, 1])
-    with col1:
-        sort_option = st.selectbox(
-            "Сортировка:",
-            ["По дате (новые)", "По дате (старые)", "По лайкам (больше)", "По лайкам (меньше)"],
-            key=f"sort_{selected_book.id}"
-        )
-    with col2:
-        filter_type = st.selectbox(
-            "Фильтр:",
-            ["Все", "Только комментарии", "Только рецензии"],
-            key=f"filter_{selected_book.id}"
-        )
-    with col3:
-        if st.button("🔄 Обновить с FantLab", key=f"sync_{selected_book.id}"):
-            with st.spinner("Синхронизация с FantLab..."):
-                try:
-                    result = sync_reviews_from_fantlab(book_id=selected_book.id)
-                    if result.get("success"):
-                        reviews_count = result.get('reviews', 0)
-                        rating = result.get('rating', 0.0)
-                        st.success(f"✅ Обновлено: {reviews_count} отзывов")
-                        if rating > 0:
-                            st.info(f"⭐ Оценка: {rating:.2f}")
-                        st.rerun()
-                    else:
-                        error_msg = result.get('error', 'Неизвестная ошибка')
-                        st.error(f"❌ Ошибка: {error_msg}")
-                        if "fantlab_work_id" in error_msg.lower():
-                            st.info("💡 У этой книги не установлен fantlab_work_id. Запустите скрипт миграции.")
-                except Exception as e:
-                    st.error(f"❌ Критическая ошибка: {str(e)}")
-                    import traceback
-                    st.code(traceback.format_exc())
-    
-    # Получаем все данные
-    all_comments_data = ReviewRepositorySupabase.get_by_book_id(selected_book.id)
-    all_items = dicts_to_reviews(all_comments_data)
-    
-    # Фильтруем по типу
-    if filter_type == "Только комментарии":
-        items = [item for item in all_items if item.comment_type == "comment"]
-    elif filter_type == "Только рецензии":
-        items = [item for item in all_items if item.comment_type == "review"]
+    if selected_book.fantlab_work_id:
+        fantlab_url = f"https://fantlab.ru/work/{selected_book.fantlab_work_id}#responses"
+        st.info(f"📝 Отзывы и комментарии к этой книге доступны на FantLab.ru")
+        st.markdown(f"[🔗 Перейти к отзывам на FantLab.ru]({fantlab_url})")
+        
+        # Показываем количество отзывов
+        try:
+            api = FantLab()
+            work_info = api.get_work_info(selected_book.fantlab_work_id)
+            if "error" not in work_info:
+                reviews_count = work_info.get("reviews_count", 0)
+                if reviews_count > 0:
+                    st.success(f"✅ На FantLab.ru найдено {reviews_count} отзывов")
+                else:
+                    st.info("ℹ️ На FantLab.ru пока нет отзывов к этой книге")
+        except Exception:
+            pass
     else:
-        items = all_items
-    
-    # Сортируем
-    if sort_option == "По дате (новые)":
-        items.sort(key=lambda x: x.date or "", reverse=True)
-    elif sort_option == "По дате (старые)":
-        items.sort(key=lambda x: x.date or "")
-    elif sort_option == "По лайкам (больше)":
-        items.sort(key=lambda x: x.likes_count or 0, reverse=True)
-    elif sort_option == "По лайкам (меньше)":
-        items.sort(key=lambda x: x.likes_count or 0)
-    
-    # Разделяем на комментарии и рецензии для отображения
-    comments = [item for item in items if item.comment_type == "comment"]
-    reviews = [item for item in items if item.comment_type == "review"]
-    
-    # Комментарии
-    if comments:
-        st.subheader(f"💬 Комментарии ({len(comments)})")
-        for comment in comments:
-            with st.container():
-                col1, col2 = st.columns([4, 1])
-                
-                with col1:
-                    author_info = comment.author_name or "Анонимный читатель"
-                    date_info = ""
-                    if comment.date:
-                        if isinstance(comment.date, str):
-                            try:
-                                date_obj = datetime.fromisoformat(comment.date.replace("Z", "+00:00"))
-                                date_info = f" • {date_obj.strftime('%d.%m.%Y')}"
-                            except:
-                                pass
-                        else:
-                            date_info = f" • {comment.date.strftime('%d.%m.%Y')}"
-                    st.caption(f"👤 {author_info}{date_info}")
-                    
-                    if comment.text:
-                        # Очищаем текст от возможных артефактов парсинга
-                        text = comment.text.strip()
-                        # Удаляем фразы интерфейса, если они попали в текст
-                        interface_phrases = [
-                            'сортировать повремени', 'по убываниювремени', 'по возрастаниюпопулярности',
-                            'сортировать по', 'по времени', 'по убыванию', 'по возрастанию'
-                        ]
-                        for phrase in interface_phrases:
-                            text = text.replace(phrase, '').strip()
-                        
-                        if text and len(text) > 5:
-                            st.write(text)
-                        else:
-                            st.write("*Комментарий без текста*")
-                    else:
-                        st.write("*Комментарий без текста*")
-                
-                with col2:
-                    likes_display = comment.likes_count if comment.likes_count is not None else 0
-                    st.metric("❤️", likes_display)
-                
-                st.markdown("---")
-    elif filter_type == "Только комментарии":
-        st.info("Комментарии не найдены. Обновите данные с FantLab.")
-    
-    # Рецензии
-    if reviews:
-        st.subheader(f"📄 Рецензии ({len(reviews)})")
-        for review in reviews:
-            with st.container():
-                col1, col2 = st.columns([4, 1])
-                
-                with col1:
-                    author_info = review.author_name or "Анонимный читатель"
-                    date_info = ""
-                    if review.date:
-                        if isinstance(review.date, str):
-                            try:
-                                date_obj = datetime.fromisoformat(review.date.replace("Z", "+00:00"))
-                                date_info = f" • {date_obj.strftime('%d.%m.%Y')}"
-                            except:
-                                pass
-                        else:
-                            date_info = f" • {review.date.strftime('%d.%m.%Y')}"
-                    st.caption(f"👤 {author_info}{date_info}")
-                    
-                    if review.text:
-                        # Очищаем текст от возможных артефактов парсинга
-                        text = review.text.strip()
-                        # Удаляем фразы интерфейса, если они попали в текст
-                        interface_phrases = [
-                            'сортировать повремени', 'по убываниювремени', 'по возрастаниюпопулярности',
-                            'сортировать по', 'по времени', 'по убыванию', 'по возрастанию'
-                        ]
-                        for phrase in interface_phrases:
-                            text = text.replace(phrase, '').strip()
-                        
-                        if text and len(text) > 5:
-                            st.write(text)
-                        else:
-                            st.write("*Рецензия без текста*")
-                    else:
-                        st.write("*Рецензия без текста*")
-                
-                with col2:
-                    likes_display = review.likes_count if review.likes_count is not None else 0
-                    st.metric("❤️", likes_display)
-                
-                st.markdown("---")
-    elif filter_type == "Только рецензии":
-        st.info("Рецензии не найдены. Обновите данные с FantLab.")
-    
-    if not comments and not reviews and filter_type == "Все":
-        st.info("Пока нет комментариев и рецензий. Обновите данные с FantLab.")
+        st.warning("⚠️ Для просмотра отзывов необходимо установить fantlab_work_id для этой книги.")

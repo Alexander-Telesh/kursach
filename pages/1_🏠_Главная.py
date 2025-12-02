@@ -100,16 +100,16 @@ else:
 st.markdown("---")
 
 # Обновление отзывов
-st.header("🔄 Обновление отзывов с FantLab")
+st.header("🔄 Обновление информации с FantLab")
 
 col1, col2 = st.columns([3, 1])
 
 with col1:
-    st.info("Нажмите кнопку для обновления отзывов с ресурса FantLab.ru. Это может занять некоторое время.")
+    st.info("Нажмите кнопку для обновления информации с ресурса FantLab.ru. Это может занять некоторое время.")
 
 with col2:
-    if st.button("🔄 Обновить отзывы", type="primary"):
-        with st.spinner("Обновление отзывов..."):
+    if st.button("🔄 Обновить информаци.", type="primary"):
+        with st.spinner("Обновление информации..."):
             try:
                 result = sync_reviews_from_fantlab()
                 if result.get("success"):
@@ -130,110 +130,35 @@ with col2:
 
 st.markdown("---")
 
-# Последние отзывы
-st.header("💬 Последние отзывы")
+# Ссылки на отзывы на FantLab
+st.header("💬 Отзывы и комментарии")
 
-# Сортировка и фильтр
-col1, col2 = st.columns([2, 2])
-with col1:
-    sort_option = st.selectbox(
-        "Сортировка:",
-        ["По дате (новые)", "По дате (старые)", "По лайкам (больше)", "По лайкам (меньше)"],
-        key="main_sort"
-    )
-with col2:
-    filter_type = st.selectbox(
-        "Фильтр:",
-        ["Все", "Только комментарии", "Только рецензии"],
-        key="main_filter"
-    )
-
-# Получаем все отзывы
-all_reviews_data = ReviewRepositorySupabase.get_all_recent(limit=100)
-all_reviews = dicts_to_reviews(all_reviews_data)
-
-# Фильтруем по типу
-if filter_type == "Только комментарии":
-    recent_reviews = [r for r in all_reviews if r.comment_type == "comment"]
-elif filter_type == "Только рецензии":
-    recent_reviews = [r for r in all_reviews if r.comment_type == "review"]
+# Получаем информацию о цикле для ссылки
+if books_data:
+    series_id = None
+    for book in books_data:
+        series_id = book.get("fantlab_series_id")
+        if series_id:
+            break
+    
+    if series_id:
+        fantlab_series_url = f"https://fantlab.ru/work/{series_id}#responses"
+        st.info(f"📝 Отзывы и комментарии к циклу 'Стеллар' доступны на FantLab.ru")
+        st.markdown(f"[🔗 Перейти к отзывам на цикл на FantLab.ru]({fantlab_series_url})")
+        
+        # Показываем количество отзывов на цикл
+        try:
+            api = FantLab()
+            series_info = api.get_series_info(series_id)
+            if "error" not in series_info:
+                series_reviews_count = series_info.get("reviews_count", 0)
+                if series_reviews_count > 0:
+                    st.success(f"✅ На FantLab.ru найдено {series_reviews_count} отзывов на цикл")
+                else:
+                    st.info("ℹ️ На FantLab.ru пока нет отзывов к этому циклу")
+        except Exception:
+            pass
+    else:
+        st.warning("⚠️ Для просмотра отзывов необходимо установить fantlab_series_id для книг.")
 else:
-    recent_reviews = all_reviews
-
-# Сортируем
-if sort_option == "По дате (новые)":
-    recent_reviews.sort(key=lambda x: x.date or "", reverse=True)
-elif sort_option == "По дате (старые)":
-    recent_reviews.sort(key=lambda x: x.date or "")
-elif sort_option == "По лайкам (больше)":
-    recent_reviews.sort(key=lambda x: x.likes_count or 0, reverse=True)
-elif sort_option == "По лайкам (меньше)":
-    recent_reviews.sort(key=lambda x: x.likes_count or 0)
-
-# Ограничиваем до 10
-recent_reviews = recent_reviews[:10]
-
-if recent_reviews:
-    for review in recent_reviews:
-        with st.container():
-            col1, col2 = st.columns([4, 1])
-            
-            with col1:
-                # Название книги
-                book_data = BookRepositorySupabase.get_by_id(review.book_id)
-                book_title = book_data.get("title") if book_data else "Неизвестная книга"
-                st.subheader(f"📖 {book_title}")
-                
-                # Автор отзыва и дата
-                author_info = review.author_name or "Анонимный читатель"
-                date_info = ""
-                if review.date:
-                    if isinstance(review.date, str):
-                        try:
-                            date_obj = datetime.fromisoformat(review.date.replace("Z", "+00:00"))
-                            date_info = f" • {date_obj.strftime('%d.%m.%Y')}"
-                        except:
-                            pass
-                    else:
-                        date_info = f" • {review.date.strftime('%d.%m.%Y')}"
-                st.caption(f"👤 {author_info}{date_info}")
-                
-                # Лайки (всегда показываем, даже если 0)
-                likes_count = review.likes_count if review.likes_count is not None else 0
-                if likes_count > 0:
-                    st.write(f"❤️ **{likes_count}** лайков")
-                else:
-                    st.write("❤️ 0 лайков")
-                
-                # Тип (комментарий или рецензия)
-                if review.comment_type == "review":
-                    st.caption("📄 Рецензия")
-                else:
-                    st.caption("💬 Комментарий")
-                
-                # Текст отзыва
-                if review.text:
-                    # Очищаем текст от возможных артефактов парсинга
-                    text = review.text.strip()
-                    # Удаляем фразы интерфейса, если они попали в текст
-                    interface_phrases = [
-                        'сортировать повремени', 'по убываниювремени', 'по возрастаниюпопулярности',
-                        'сортировать по', 'по времени', 'по убыванию', 'по возрастанию'
-                    ]
-                    for phrase in interface_phrases:
-                        text = text.replace(phrase, '').strip()
-                    
-                    if text and len(text) > 5:
-                        st.write(text)
-                    else:
-                        st.write("*Отзыв без текста*")
-                else:
-                    st.write("*Отзыв без текста*")
-            
-            with col2:
-                likes_count = review.likes_count if review.likes_count is not None else 0
-                st.metric("❤️", likes_count)
-            
-            st.markdown("---")
-else:
-    st.info("Пока нет отзывов. Обновите отзывы с FantLab, чтобы увидеть их здесь.")
+    st.info("ℹ️ Книги не найдены в базе данных.")
