@@ -11,7 +11,7 @@ from utils.config import Config
 st.title("📚 Книги серии 'Стеллар'")
 st.markdown("---")
 
-# Получаем все книги
+# Получаем все книги (обновляем при каждом рендере для актуальности данных)
 books_data = BookRepositorySupabase.get_all()
 books = dicts_to_books(books_data)
 
@@ -200,16 +200,33 @@ else:
                         if result.get("success"):
                             reviews_count = result.get('reviews', 0)
                             rating = result.get('rating', 0.0)
-                            st.success(f"✅ Данные обновлены!")
+                            voters_count = result.get('voters_count', 0)
+                            
+                            # Обновляем данные книги в session_state для немедленного отображения
+                            updated_book_data = BookRepositorySupabase.get_by_id(selected_book.id)
+                            if updated_book_data:
+                                # Обновляем selected_book в списке books
+                                for i, book in enumerate(books):
+                                    if book.id == selected_book.id:
+                                        books[i] = dict_to_book(updated_book_data)
+                                        break
+                            
+                            st.success(f"✅ Данные обновлены в базе!")
                             if rating > 0:
                                 st.info(f"⭐ Рейтинг: {rating:.2f}")
+                            if voters_count > 0:
+                                st.info(f"👥 Оценок: {voters_count}")
                             if reviews_count > 0:
                                 st.info(f"📝 Обновлено отзывов: {reviews_count}")
+                            
+                            # Перезагружаем страницу для отображения обновленных данных
                             st.rerun()
                         else:
                             st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
                     except Exception as e:
                         st.error(f"❌ Ошибка обновления: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
         
         # Получаем информацию о произведении (всегда получаем свежие данные с FantLab)
         try:

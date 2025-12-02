@@ -431,30 +431,68 @@ class FantLab:
             reviews_container = soup.find('div', class_=re.compile(r'responses-list', re.I))
             
             if not reviews_container:
+                # Пробуем альтернативные варианты поиска контейнера
+                # Ищем по id или другим атрибутам
+                reviews_container = soup.find('div', id=re.compile(r'responses|reviews|comments', re.I))
+                if not reviews_container:
+                    # Ищем любой div с классом, содержащим "response" или "review"
+                    reviews_container = soup.find('div', class_=re.compile(r'response|review|comment', re.I))
+            
+            if not reviews_container:
+                print(f"   ⚠️  Контейнер с отзывами не найден для work_id={work_id}")
+                # Отладочный вывод: сохраняем HTML для анализа
+                if len(html) > 0:
+                    # Ищем все div с классами, содержащими "response"
+                    all_response_divs = soup.find_all('div', class_=re.compile(r'response', re.I))
+                    print(f"   🔍 Найдено div с классом 'response': {len(all_response_divs)}")
+                    if all_response_divs:
+                        print(f"   🔍 Примеры классов: {[div.get('class') for div in all_response_divs[:3]]}")
                 return reviews
             
             # Шаг 2: Ищем все элементы response-item внутри контейнера
             review_items = reviews_container.find_all('div', class_=re.compile(r'response-item', re.I))
             
+            # Если не нашли через response-item, пробуем другие варианты
+            if not review_items:
+                review_items = reviews_container.find_all('div', class_=re.compile(r'response|review|comment', re.I))
+            
+            print(f"   🔍 Найдено элементов отзывов: {len(review_items)}")
+            
             # Шаг 3: Для каждого response-item извлекаем данные
-            for item in review_items:
+            for i, item in enumerate(review_items):
                 try:
                     # Шаг 3.1: Проверяем наличие response-body-home внутри response-item
                     review_body = item.find('div', class_=re.compile(r'response-body-home', re.I))
                     
+                    # Если не нашли response-body-home, пробуем найти текст напрямую
+                    if not review_body:
+                        # Ищем любой div с текстом внутри item
+                        text_divs = item.find_all('div', recursive=True)
+                        for text_div in text_divs:
+                            text_content = text_div.get_text(strip=True)
+                            if text_content and len(text_content) > 20:
+                                review_body = text_div
+                                break
+                    
                     if not review_body:
                         # Если response-body-home не найден, пропускаем этот отзыв
+                        print(f"   ⚠️  Отзыв {i+1}: response-body-home не найден")
                         continue
                     
                     # Шаг 3.2: Извлекаем данные из response-item
                     review = self._extract_review_from_element(item, work_id)
                     if review:
                         reviews.append(review)
-                except Exception:
+                        print(f"   ✅ Отзыв {i+1}: извлечен (автор: {review.get('author_name', 'N/A')})")
+                    else:
+                        print(f"   ⚠️  Отзыв {i+1}: не удалось извлечь данные")
+                except Exception as e:
+                    print(f"   ⚠️  Ошибка при обработке отзыва {i+1}: {e}")
                     continue
             
             # Ограничиваем количество
             reviews = reviews[:limit]
+            print(f"   ✅ Всего извлечено отзывов: {len(reviews)}")
             
         except Exception as e:
             print(f"   ⚠️  Ошибка парсинга отзывов из HTML: {e}")
@@ -946,6 +984,13 @@ def sync_reviews_from_fantlab(book_id: Optional[int] = None, update_ratings_only
             return error_msg
         
         stats = process_book(book_data)
+        
+        # Получаем обновленные данные из базы для возврата
+        updated_book_data = BookRepositorySupabase.get_by_id(book_id)
+        if updated_book_data:
+            stats["voters_count"] = updated_book_data.get("fantlab_voters_count", 0)
+            stats["reviews_count"] = updated_book_data.get("fantlab_reviews_count", 0)
+        
         result = {"success": True, "book_id": book_id, **stats}
         
         if stats.get("error"):
