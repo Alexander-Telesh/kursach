@@ -47,12 +47,28 @@ class BookRepositorySupabase:
         
         supabase = get_supabase_client()
         query_lower = query.lower().strip()
+        query_pattern = f"%{query_lower}%"
         
         # Используем ilike для поиска (PostgreSQL case-insensitive)
-        response = supabase.table("books").select("*").or_(
-            f"title.ilike.%{query_lower}%,author.ilike.%{query_lower}%,description.ilike.%{query_lower}%"
-        ).execute()
-        return response.data if response.data else []
+        # Ищем в title, author и description
+        # Используем подход: ищем по каждому полю отдельно и объединяем результаты
+        # (более надежно, чем .or_() который может вызывать ошибки)
+        results = []
+        seen_ids = set()
+        
+        for field in ["title", "author", "description"]:
+            try:
+                field_response = supabase.table("books").select("*").ilike(field, query_pattern).execute()
+                if field_response.data:
+                    for item in field_response.data:
+                        item_id = item.get("id")
+                        if item_id and item_id not in seen_ids:
+                            results.append(item)
+                            seen_ids.add(item_id)
+            except Exception:
+                continue
+        
+        return results
     
     @staticmethod
     def full_text_search(query: str) -> List[Dict]:
