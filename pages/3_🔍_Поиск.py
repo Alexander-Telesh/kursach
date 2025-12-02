@@ -60,19 +60,24 @@ if st.button("🔍 Найти", type="primary") or search_query:
                                 break
             
             # Если включен поиск в текстах книг
+            # Сохраняем контексты найденных совпадений
+            book_matches = {}  # {book_id: [{"section_title": "...", "context": "...", "position": ...}, ...]}
+            
             if search_in_content:
                 all_books_data = BookRepositorySupabase.get_all()
                 query_lower = search_query.lower().strip()
+                query_original = search_query.strip()
                 existing_ids = {r.id for r in results}
                 
                 for book_data in all_books_data:
                     book_id = book_data.get("id")
+                    book = dict_to_book(book_data)
+                    
                     # Пропускаем, если книга уже в результатах
                     if any(r.id == book_id for r in results):
                         continue
                     
                     # Ищем в тексте книги (FB2 файл)
-                    book = dict_to_book(book_data)
                     fb2_path = None
                     
                     if book.fb2_file_path:
@@ -96,17 +101,100 @@ if st.button("🔍 Найти", type="primary") or search_query:
                         try:
                             parsed_book = FB2Parser.parse_fb2(fb2_path)
                             if "error" not in parsed_book:
-                                # Ищем в тексте всех секций
-                                all_text = ""
-                                for section in parsed_book.get("sections", []):
-                                    section_text = section.get("text", "")
-                                    if section_text:
-                                        all_text += section_text.lower() + " "
+                                matches = []
                                 
-                                if query_lower in all_text:
+                                # Ищем в тексте всех секций
+                                for section in parsed_book.get("sections", []):
+                                    section_title = section.get("title", "")
+                                    section_text = section.get("text", "")
+                                    
+                                    if section_text:
+                                        # Ищем совпадения (поддерживаем и точные фразы, и отдельные слова)
+                                        text_lower = section_text.lower()
+                                        
+                                        # Проверяем точное совпадение фразы
+                                        if query_lower in text_lower:
+                                            # Находим все позиции совпадений
+                                            start_pos = 0
+                                            while True:
+                                                pos = text_lower.find(query_lower, start_pos)
+                                                if pos == -1:
+                                                    break
+                                                
+                                                # Извлекаем контекст (150 символов до и после)
+                                                context_start = max(0, pos - 150)
+                                                context_end = min(len(section_text), pos + len(query_original) + 150)
+                                                context = section_text[context_start:context_end]
+                                                
+                                                # Выделяем найденный текст (используем markdown для выделения)
+                                                match_in_context = pos - context_start
+                                                match_text = context[match_in_context:match_in_context + len(query_original)]
+                                                highlighted_context = (
+                                                    context[:match_in_context] +
+                                                    f"**{match_text}**" +
+                                                    context[match_in_context + len(query_original):]
+                                                )
+                                                
+                                                matches.append({
+                                                    "section_title": section_title or "Без названия",
+                                                    "context": highlighted_context,
+                                                    "position": pos
+                                                })
+                                                
+                                                start_pos = pos + 1
+                                        
+                                        # Если точное совпадение не найдено, ищем по отдельным словам
+                                        elif len(query_lower.split()) > 1:
+                                            query_words = query_lower.split()
+                                            # Проверяем, что все слова присутствуют в тексте
+                                            if all(word in text_lower for word in query_words):
+                                                # Находим позицию первого слова
+                                                first_word_pos = text_lower.find(query_words[0])
+                                                if first_word_pos != -1:
+                                                    # Извлекаем контекст вокруг первого слова
+                                                    context_start = max(0, first_word_pos - 150)
+                                                    context_end = min(len(section_text), first_word_pos + 200)
+                                                    context = section_text[context_start:context_end]
+                                                    
+                                                    # Выделяем все найденные слова в оригинальном контексте
+                                                    highlighted_context = context
+                                                    context_lower = context.lower()
+                                                    
+                                                    # Выделяем слова в обратном порядке, чтобы позиции не сдвигались
+                                                    for word in reversed(query_words):
+                                                        word_lower = word.lower()
+                                                        # Ищем слово в оригинальном контексте
+                                                        word_pos = context_lower.find(word_lower)
+                                                        if word_pos != -1:
+                                                            # Находим границы слова (учитываем только буквы и цифры)
+                                                            word_start = word_pos
+                                                            word_end = word_pos + len(word)
+                                                            
+                                                            # Расширяем границы до полного слова
+                                                            while word_start > 0 and context[word_start-1].isalnum():
+                                                                word_start -= 1
+                                                            while word_end < len(context) and context[word_end].isalnum():
+                                                                word_end += 1
+                                                            
+                                                            if word_end > word_start:
+                                                                word_text = context[word_start:word_end]
+                                                                highlighted_context = (
+                                                                    highlighted_context[:word_start] +
+                                                                    f"**{word_text}**" +
+                                                                    highlighted_context[word_end:]
+                                                                )
+                                                    
+                                                    matches.append({
+                                                        "section_title": section_title or "Без названия",
+                                                        "context": highlighted_context,
+                                                        "position": first_word_pos
+                                                    })
+                                
+                                if matches:
                                     # Добавляем книгу в результаты
                                     results.append(book)
-                        except Exception:
+                                    book_matches[book_id] = matches
+                        except Exception as e:
                             pass  # Игнорируем ошибки парсинга
         
         if results:
@@ -148,6 +236,17 @@ if st.button("🔍 Найти", type="primary") or search_query:
                             if len(description) > 300:
                                 description = description[:300] + "..."
                             st.write(description)
+                        
+                        # Показываем найденные совпадения в тексте книги
+                        if search_in_content and book.id in book_matches:
+                            st.markdown("**🔍 Найдено в тексте книги:**")
+                            matches = book_matches[book.id]
+                            # Показываем первые 3 совпадения
+                            for i, match in enumerate(matches[:3]):
+                                with st.expander(f"📄 {match['section_title']} (совпадение {i+1})"):
+                                    st.markdown(f"...{match['context']}...")
+                            if len(matches) > 3:
+                                st.caption(f"И еще {len(matches) - 3} совпадений...")
                         
                         if book.series_order:
                             st.caption(f"Порядок в серии: #{book.series_order}")
@@ -267,5 +366,6 @@ with st.expander("💡 Подсказки по поиску"):
     - Полнотекстовый поиск использует возможности PostgreSQL для более точных результатов
     - Можно искать по части слова или фразе
     - Регистр букв не имеет значения
-    - Поиск в текстах книг ищет по содержимому FB2 файлов (может быть медленным)
+    - Поиск в текстах книг ищет по содержимому FB2 файлов и показывает контекст найденных совпадений
+    - При поиске в текстах книг отображаются фрагменты текста с выделенными совпадениями
     """)
