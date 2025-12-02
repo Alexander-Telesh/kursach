@@ -82,9 +82,13 @@ else:
 st.header("📊 Статистика с FantLab")
 
 # Получаем информацию о цикле с FantLab
+# Ищем series_id во всех книгах, а не только в первой
+series_id = None
 if books_data:
-    first_book = books_data[0]
-    series_id = first_book.get("fantlab_series_id")
+    for book in books_data:
+        series_id = book.get("fantlab_series_id")
+        if series_id:
+            break
     
     if series_id:
         try:

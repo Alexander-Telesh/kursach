@@ -21,11 +21,16 @@ class BookRepositorySupabase:
         return response.data[0] if response.data else None
     
     @staticmethod
-    def get_by_litres_id(litres_id: str) -> Optional[Dict]:
-        """Получить книгу по ID из Litres/AuthorToday."""
+    def get_by_external_id(external_id: str) -> Optional[Dict]:
+        """Получить книгу по внешнему ID (для совместимости)."""
         supabase = get_supabase_client()
-        response = supabase.table("books").select("*").eq("litres_book_id", litres_id).execute()
+        response = supabase.table("books").select("*").eq("external_book_id", external_id).execute()
         return response.data[0] if response.data else None
+    
+    @staticmethod
+    def get_by_litres_id(litres_id: str) -> Optional[Dict]:
+        """Получить книгу по ID из Litres/AuthorToday (устаревший метод, используйте get_by_external_id)."""
+        return BookRepositorySupabase.get_by_external_id(litres_id)
     
     @staticmethod
     def get_by_fantlab_work_id(work_id: int) -> Optional[Dict]:
@@ -234,14 +239,14 @@ class ReviewRepositorySupabase:
     def create_or_update(review_data: Dict) -> Dict:
         """Создать или обновить отзыв."""
         supabase = get_supabase_client()
-        litres_review_id = review_data.get("litres_review_id")
+        fantlab_review_id = review_data.get("fantlab_review_id")
         
-        if litres_review_id:
+        if fantlab_review_id:
             # Проверяем существование
-            existing = supabase.table("reviews").select("*").eq("litres_review_id", litres_review_id).execute()
+            existing = supabase.table("reviews").select("*").eq("fantlab_review_id", fantlab_review_id).execute()
             if existing.data:
                 # Обновляем
-                response = supabase.table("reviews").update(review_data).eq("litres_review_id", litres_review_id).execute()
+                response = supabase.table("reviews").update(review_data).eq("fantlab_review_id", fantlab_review_id).execute()
                 return response.data[0] if response.data else {}
         
         # Создаем новый

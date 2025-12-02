@@ -12,7 +12,8 @@ class Book:
         self.description = data.get("description")
         self.series_order = data.get("series_order")
         self.fb2_file_path = data.get("fb2_file_path")
-        self.litres_book_id = data.get("litres_book_id")
+        self.external_book_id = data.get("external_book_id") or data.get("litres_book_id")  # Для совместимости
+        self.litres_book_id = data.get("litres_book_id") or data.get("external_book_id")  # Обратная совместимость
         self.fantlab_work_id = data.get("fantlab_work_id")
         self.fantlab_series_id = data.get("fantlab_series_id")
         self.created_at = data.get("created_at")
@@ -33,7 +34,8 @@ class Review:
     def __init__(self, data: Dict):
         self.id = data.get("id")
         self.book_id = data.get("book_id")
-        self.litres_review_id = data.get("litres_review_id")
+        self.fantlab_review_id = data.get("fantlab_review_id") or data.get("litres_review_id")  # Для совместимости
+        self.litres_review_id = data.get("litres_review_id") or data.get("fantlab_review_id")  # Обратная совместимость
         self.author_name = data.get("author_name")
         self.likes_count = data.get("likes_count", 0)
         self.comment_type = data.get("comment_type", "comment")
