@@ -1,0 +1,84 @@
+// исспользуются на странице списка подписок /subscribes
+// устарелою. надо перевести на ajax, который уже есть и работает на страницах библиобазы
+// TODO: заменить в вызоавх на $("a.blog_subscribe").click(function() {
+function sendBlogSubscriptionInfo(blog_id)
+{ 	
+		var ts_request = getXmlHttp();
+		ts_request.open('GET', '/editblog'+blog_id+'subscriber?rand='+Math.random(), true);
+		ts_request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		ts_request.onreadystatechange = function() 
+		{
+			if (ts_request.readyState == 4) 
+			{
+				if(ts_request.status == 200) 
+				{
+				    if (ts_request.responseText=='{"is_subscribed":"on"}')
+				    {
+					document.getElementById('img_subscribe_blog'+blog_id).src = '/img/subscr.png';
+				    } else
+				    {
+					document.getElementById('img_subscribe_blog'+blog_id).src = '/img/subscr_empty.png';
+				    }
+				    document.getElementById('wait_blog'+blog_id).innerHTML = '';
+				}
+			}
+		};
+		ts_request.send(null);
+	return true;
+}
+
+
+// TODO: заменить в вызоавх на $("a.forum_subscribe").click(function() {
+function sendTopicSubscriptionInfo(topic_id)
+{ 	
+		var ts_request = getXmlHttp();
+		ts_request.open('GET', '/edittopic'+topic_id+'subscriber?rand='+Math.random(), true);
+		ts_request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		ts_request.onreadystatechange = function() 
+		{
+			if (ts_request.readyState == 4) 
+			{
+				if(ts_request.status == 200) 
+				{
+				    if (ts_request.responseText=='{"is_subscribed":"on"}')
+				    {
+					document.getElementById('img_subscribe_topic'+topic_id).src = '/img/subscr.png';
+				    } else
+				    {
+					document.getElementById('img_subscribe_topic'+topic_id).src = '/img/subscr_empty.png';
+				    }
+					document.getElementById('wait_topic'+topic_id).innerHTML = '';
+				}
+			}
+		};
+		ts_request.send(null);
+	return true;
+}
+
+// TODO: заменить в вызовах на $("a.forum_topic_subscribe").click(function() {
+function sendForumTopicSubscriptionInfo(topic_id)
+{ 	
+		var ts_request = getXmlHttp();
+		ts_request.open('GET', '/editforumtopic'+topic_id+'subscriber?rand='+Math.random(), true);
+		ts_request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		ts_request.onreadystatechange = function() 
+		{
+			if (ts_request.readyState == 4) 
+			{
+				if(ts_request.status == 200) 
+				{
+				    if (ts_request.responseText=='{"is_subscribed":"on"}')
+				    {
+					document.getElementById('img_subscribe_topic'+topic_id).src = '/img/subscr.png';
+				    } else
+				    {
+					document.getElementById('img_subscribe_topic'+topic_id).src = '/img/subscr_empty.png';
+				    }
+					document.getElementById('wait_topic'+topic_id).innerHTML = '';
+				}
+			}
+		};
+		ts_request.send(null);
+	return true;
+}
+

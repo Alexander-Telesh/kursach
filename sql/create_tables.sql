@@ -1,5 +1,7 @@
+-- ============================================================================
 -- SQL скрипт для создания таблиц в Supabase
 -- Выполните этот скрипт в Supabase Dashboard → SQL Editor
+-- ============================================================================
 
 -- Создание таблицы books
 CREATE TABLE IF NOT EXISTS books (
@@ -23,6 +25,8 @@ CREATE TABLE IF NOT EXISTS books (
 CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
 CREATE INDEX IF NOT EXISTS idx_books_fantlab_work_id ON books(fantlab_work_id);
 CREATE INDEX IF NOT EXISTS idx_books_fantlab_series_id ON books(fantlab_series_id);
+CREATE INDEX IF NOT EXISTS idx_books_fantlab_rating ON books(fantlab_rating DESC);
+CREATE INDEX IF NOT EXISTS idx_books_fantlab_reviews_count ON books(fantlab_reviews_count DESC);
 
 -- Создание таблицы reviews
 CREATE TABLE IF NOT EXISTS reviews (
@@ -43,4 +47,12 @@ CREATE INDEX IF NOT EXISTS idx_reviews_book_id ON reviews(book_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_fantlab_id ON reviews(fantlab_review_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_date ON reviews(date DESC);
 
-
+-- Проверка создания таблиц
+SELECT 
+    table_name,
+    column_name,
+    data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+    AND table_name IN ('books', 'reviews')
+ORDER BY table_name, ordinal_position;

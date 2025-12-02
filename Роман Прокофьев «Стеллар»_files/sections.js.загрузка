@@ -1,0 +1,139 @@
+var request = new Array();
+
+var img_plus=new Image(18.19);
+img_plus.src='/img/leftedge.gif';
+var img_minus=new Image(18.19);
+img_minus.src='/img/leftedge_minus.gif';
+
+function bhide(obj_name,work_type_id,plan)
+{
+
+  var obj=document.getElementById(obj_name);
+  var el=document.getElementById(obj.id+'_img');
+  var el_rating=document.getElementById(obj.id+'_rating');
+
+  if (obj.className != 'hidden')
+  { 
+    if (obj.id == 'award_info')
+    {
+        el.src = '/img/block_open.gif';
+    } 
+    else
+    {
+        el.src=img_minus.src;
+    }
+    obj.className = 'hidden';  
+    if (el_rating != null) el_rating.className = 'hidden'; 
+    plus_hidden(work_type_id);
+  }
+  else
+  {
+    if (obj.id == 'award_info')
+    {
+    	el.src = '/img/block_hide.gif';
+    } 
+    else
+    {
+        el.src=img_plus.src;
+    }
+    
+    obj.className = 'visible';
+    if (el_rating != null)
+      el_rating.className = 'visible';  
+    minus_hidden(work_type_id);
+  }
+}
+
+function simple_hide(obj)
+{ 
+  var el=document.getElementById(obj.id+'_img');    
+  if (obj.className != 'hidden')
+  { 
+      el.src=img_minus.src;    
+      obj.className = 'hidden';       
+  }
+  else
+  {  
+      el.src=img_plus.src;      
+      obj.className = 'visible';      
+  }
+}
+
+function plus_hidden(work_type_id)
+{
+ var cookie = Get_Cookie('hidden_sections');
+  if ((cookie == null) || (cookie.match(/NaN/))  )
+   cookie = '';
+ var pattern = new RegExp('_'+work_type_id.toString()+'_','');
+ if (!cookie.match(pattern))
+  cookie = cookie +  '_'+work_type_id.toString()+'_';
+ 
+ setCookie('hidden_sections',cookie,0);
+ send_sections(work_type_id,1);
+}
+
+
+function minus_hidden(work_type_id)
+{
+ var cookie = Get_Cookie('hidden_sections');
+  if ((cookie == null) || (cookie.match(/NaN/))  )
+   cookie = '';
+  else
+  {
+    var pattern = new RegExp('_'+work_type_id.toString()+'_','');
+    if (cookie.match(pattern)!= null)
+     cookie = cookie.replace(pattern,'');
+  } 
+ setCookie('hidden_sections',cookie,0);
+ send_sections(work_type_id,0);
+}
+
+function send_sections(section,section_value) 
+{	
+	if (window.XMLHttpRequest) {
+		request[section] = new XMLHttpRequest();		
+		request[section].open('GET', '/hide_sections?section=' +section+'&value='+section_value, true);
+		request[section].setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		request[section].send(null);		
+	} else if (window.ActiveXObject) {
+		request[section] = new ActiveXObject('Microsoft.XMLHTTP');
+		if (request[section])
+		{		 
+		  request[section].open('GET', '/hide_sections?section=' +section+'&value='+section_value, true);
+		  request[section].setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		  request[section].send(null);		
+		}
+	} else return true;
+	
+	return false;
+}
+
+//http://techpatterns.com/downloads/javascript_cookies.php
+function Get_Cookie( check_name ) {
+	var a_all_cookies = document.cookie.split( ';' );
+	var a_temp_cookie = '';
+	var cookie_name = '';
+	var cookie_value = '';
+	var b_cookie_found = false;
+	for ( i = 0; i < a_all_cookies.length; i++ )
+	{
+		a_temp_cookie = a_all_cookies[i].split( '=' );		
+		cookie_name = a_temp_cookie[0].replace(/^\s+|\s+$/g, '');		
+		if ( cookie_name == check_name )
+		{
+			b_cookie_found = true;			
+			if ( a_temp_cookie.length > 1 )
+			{
+				cookie_value = unescape( a_temp_cookie[1].replace(/^\s+|\s+$/g,'') );				
+			}			
+			return cookie_value;
+			break;
+		}
+		a_temp_cookie = null;
+		cookie_name = '';
+	}
+	if ( !b_cookie_found )
+	{
+		return null;
+	}
+}

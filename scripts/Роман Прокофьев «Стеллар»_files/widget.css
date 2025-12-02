@@ -1,0 +1,108 @@
+
+/*bookcase_widget*/
+select.bookcase_sel {
+  width: 145px;
+}
+
+div.ch_load {
+  display: none;
+  border: 1px solid #316A8C;
+  position: absolute;
+  z-index: 2;
+  background-color: grey;
+  opacity: 0.25;
+}
+
+div.ch_load_img {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  background-color: grey;
+}
+
+div.ch_load_img img {
+  padding: 2px;
+  position: absolute;
+}
+
+/* private_messages widget */
+#notice-base li:hover { background-color: #EEE }
+#notice-base .pm-iconbutton { color: #CCC; padding: 0 1em }
+#notice-base .pm-iconbutton-a { visibility: hidden; position: absolute; right: 0 }
+#notice-base li:hover .pm-iconbutton { visibility: visible; color: #AAAA }
+#notice-base li:hover .pm-iconbutton:hover { visibility: visible; color: #3178A8  }
+
+#pm_edit_popup {
+    -webkit-box-shadow: 3px 3px 5px 1px rgba(50, 50, 50, 0.8);
+    -moz-box-shadow:    3px 3px 5px 1px rgba(50, 50, 50, 0.8);
+    box-shadow:         3px 3px 5px 1px rgba(50, 50, 50, 0.8);
+    border:none;
+    background:#EEF2F4;
+    position:absolute;
+    width: 280px;
+    visibility:hidden;
+    z-index: 10001;
+    top:50%;
+    left:50%;
+}
+
+#pm_edit_popup .remove {
+    color: #AAA;
+    margin: 0 2em;
+}
+
+#pm_edit_popup .remove:hover {
+    color: #3178A8;
+    text-decoration: none;
+}
+
+#pm_edit_popup .popup-footer {
+    width: 100%;
+    height: 40px;
+    line-height: 40px;
+    background-color: #f5f5f5;
+}
+
+#pm_edit_popup .btn {
+    -webkit-border-radius: 2px !important;
+    -moz-border-radius: 2px !important;
+    border-radius: 2px !important;
+    margin: 0 2em;
+}
+
+#pm_edit_popup .dd-button span {
+    margin-left: -2em;
+    width: 16px;
+    background: white;
+    color: gray;
+    border: 0;
+    -webkit-appearance: none;
+}
+
+#pm_edit_popup .dd-button span:hover {
+    color: #3178A8;
+}
+
+#pm_edit_popup .dropdown-menu {
+    top: initial;
+}
+
+#notice-base .head1 { text-align:left; position: relative; font-size:1em; margin-top: 10px }
+#notice-base .head1 span.left { position:absolute;  top:0.6em; left:0; height:1px; width:30%;  background: #fff; border-top: 1px solid #CCC; }
+#notice-base .head1 span.right {
+    position:absolute;  top:0.6em; right:0; height:1px; background: #fff; border-top: 1px solid #CCC;
+}
+
+
+div.random_work_genres {
+    position: absolute;
+    width: 180px;
+    border: 1px solid black;
+    text-align: left;
+    background-color: #FDFCDC;
+    padding: 10px;
+    line-height: 2;
+    visibility: hidden;
+    left: 17px;
+    bottom: 12px;
+}

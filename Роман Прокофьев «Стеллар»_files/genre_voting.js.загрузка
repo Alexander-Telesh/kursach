@@ -1,0 +1,231 @@
+var genreform_loaded = 0
+var mouse_on_note = 0;
+var said_thank_you = false;
+
+function UpdateWorkClassif(work_id)
+{
+  if (!work_id) { return }
+  var random_num = (Math.round((Math.random()*Math.random()*10001)+1));
+  var req = getXmlHttp();
+  req.open("GET", "/workclassif"+work_id+"?"+random_num, false); 
+  req.send(null);
+  if (req.readyState == 4) 
+  {
+    if(req.status == 200) 
+    { 
+      document.all["workclassif"].innerHTML=req.responseText;
+    }
+  }
+}
+
+function OpenClassifPopup(work_id) {
+    document.getElementById("genrevote").style.visibility="visible";
+    $(document).on('keyup.classifpopup', function(e) {
+        if (e.keyCode == 27) {
+            CloseClassifPopup();
+        }
+    });
+    window.setTimeout(function() { LoadClassifForm(work_id) },0);
+}
+
+function CloseClassifPopup() {
+    $(document).off('keyup.classifpopup');
+    document.getElementById("genrevote").style.visibility="hidden";
+}
+
+function LoadClassifForm(work_id)
+{
+  if (!work_id) { return }
+  if (genreform_loaded == 0)
+  {
+    var random_num = (Math.round((Math.random()*Math.random()*10001)+1));
+    var req = getXmlHttp();
+    req.open("GET", "/genrevote"+work_id+"form?"+random_num, false); 
+    req.send(null);
+    if (req.readyState == 4) 
+    {
+      if(req.status == 200) { document.all["genreframe"].innerHTML=req.responseText }
+    }
+
+    SetupScrollSpy();
+    
+    // ckeckbox clicks
+    $('#genrevoteform > label > input').on('click', function(e) {
+        var group_p = $(this).parent('label').prevAll('p').first();
+        MarkCheckboxGroup(group_p);
+        // Если выбраны обязательные категории, но среди необязательных выбраны ноль или одна
+        // и если выбраны все категории
+        $('#genrevote .genrevote-info').remove();
+        $('#genrevote .genrevote-error').remove();
+        var all_selected = $("#genrevoteform_nav li:not(.valid)").length == 0;
+        var all_required = $("#genrevoteform_nav li.required:not(.valid)").length == 0;
+        var noptional = $("#genrevoteform_nav li.valid:not(.required)").length;
+        if(all_selected && ! said_thank_you) {
+            $('#classif-buttons').after($('<p class="genrevote-info" style="color:#00C000">Спасибо за подробную оценку!</p>').fadeIn(200));
+            said_thank_you = true;
+        }
+        else if(all_required && noptional == 1) {
+            $('#classif-buttons').after($('<p class="genrevote-info">Желательно выбрать ещё в одной категории</p>').fadeIn(200));
+        }
+        else if(all_required && noptional == 0) {
+            $('#classif-buttons').after($('<p class="genrevote-info">Желательно выбрать ещё в двух категориях</p>').fadeIn(200));
+        }
+
+    });
+    $("#genrevoteform_nav").find('a').each(function(){
+        var id = $(this).attr("href");
+        MarkCheckboxGroup($(id));
+    });
+
+
+    genreform_loaded = 1;
+  }
+}
+
+function SaveClassifForm()
+{
+  var work_id = $('#genrevoteform').data('work-id');
+  if (!work_id) { return }
+
+  // validate form
+  var form_errors = [];
+  $("#genrevoteform_nav").find('li').each(function(){
+    if( $(this).hasClass('required') && ! $(this).hasClass('valid') ) {
+      form_errors.push( $(this).text() );
+    }
+  });
+  // позволяем сохранить форму без галочек - отозвать голос
+  if( $("#genrevoteform").find(':checkbox:checked').length == 0 ) {
+      form_errors = [];
+  }
+  $('#genrevote .genrevote-error').remove();
+  $('#genrevote .genrevote-info').remove();
+  if(form_errors.length > 0) {
+    $('#classif-buttons').after($('<p class="genrevote-error">Укажите «' + form_errors[0] + '»</p>').fadeIn(200));
+    return;
+  }
+
+  var random_num = (Math.round((Math.random()*Math.random()*10001)+1));
+  var req = getXmlHttp();
+  var form = document.all["genrevoteform"].elements;
+  var str = "?";
+  for (i=0; i<form.length; i++) 
+  {
+    if (form[i].name.substring(0,2)=="wg")
+    {
+      if (form[i].checked)
+      {
+       str = str+form[i].name+'=on&';
+      }       
+    }
+  }
+  str = str+random_num;
+  document.getElementById("genrevote").style.visibility="hidden";
+  document.getElementById("wgresult").innerHTML = "<img align=absmiddle src='/img/loadingmini.gif'> <b>сохранение...</b>";
+  $('#deletebutton').show();
+  req.open("GET", "/genrevote"+work_id+str, true);
+  req.onreadystatechange = function() 
+  {
+    if (req.readyState == 4)
+    {
+      if(req.status == 200) 
+      {
+        UpdateWorkClassif(work_id);
+      }
+    }
+  };
+  req.send(null);
+}
+// функция снимает все отметки и вызывает SaveClassifForm, чтобы удалить текущую классификацию
+function DeleteClassifResult() {
+  var confirmed = confirm("Вы уверены, что хотите удалить свою классификацию?");
+  if (confirmed) {
+    // снимем отметки в боковом меню формы, чтобы при следующем открытии формы без перезагрузки оно было дефолтным
+    $("#genrevoteform_nav").find("li").each(function(){
+      if($(this).hasClass("valid") ) {
+        $(this).removeClass("valid");
+      }
+      if($(this).hasClass("active") ) {
+        $(this).removeClass("active");
+      }
+    });
+    $('#genrevoteform input[type="checkbox"]').prop('checked', false);
+    SaveClassifForm();
+    $('#deletebutton').hide();
+  }
+}
+
+function ShowClassifNote()
+{
+  document.getElementById("classifnotediv").style.visibility="visible";
+}
+
+function SetupScrollSpy() {
+    var nav = $("#genrevoteform_nav");
+    var lst = $("#genrevoteform");
+    var scroll_tgt = $('#genreframe');
+    var topMenuHeight = 0;
+    var scrollItems = nav.find('a').map(function(){
+        var id = $(this).attr("href");
+        var item = $(id);
+        return id;
+    });
+    nav.on('click', 'li', function(e) {
+        var href = $(this).find('a').attr("href");
+        var pos = $(href).position().top - $('#work_genre_group_1').position().top;
+        var offsetTop = pos-topMenuHeight+2;
+        scroll_tgt.stop().animate({ scrollTop: offsetTop }, 300);
+        e.preventDefault();
+    });
+
+    var lastId;
+    scroll_tgt.on('scroll', function() {
+        var fromTop = $(this).scrollTop()+topMenuHeight;
+        var cur = scrollItems.map(function(i,id){
+            var pos = $(id).position().top - $('#work_genre_group_1').position().top;
+            if (pos < fromTop) return id;
+        });
+        var id = cur[cur.length-1];
+        // last item
+        if(lst.height() - $(this).height() - $(this).scrollTop() < 20)
+            id = scrollItems[scrollItems.length-1];
+        if (id && lastId !== id) {
+            lastId = id;
+            nav.find('li').removeClass("active");
+            nav.find("a[href='"+id+"']").parent().addClass("active");
+        }
+    });
+}
+
+function MarkCheckboxGroup(group_p) {
+    var checkboxes_in_group = group_p.nextUntil('p').find('> input');
+    var nav_item = $("a[href='#"+ group_p.attr('id') +"']").parent('li');
+    if(checkboxes_in_group.is(':checked')) {
+        nav_item.addClass('valid');
+    }
+    else {
+        nav_item.removeClass('valid');
+    }
+}
+
+function swap_autor_genres(full_mode, save_to_db) {
+    if (full_mode) {
+      document.getElementById("ags-div").style.display="none";
+      document.getElementById("agf-div").style.display="block";
+    } else {
+      document.getElementById("ags-div").style.display="block";
+      document.getElementById("agf-div").style.display="none";
+    }
+    if (save_to_db) {
+        random_num = (Math.round((Math.random()*Math.random()*1000001)+1));
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/autorgenressetmode'+full_mode+'?rnd=' + random_num, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.send();
+   }
+}
+
+function expand_autor_analogs() {
+  $('.author-slot.expand-a').css('display','none');
+  $('.author-slot.additional').css('display','flex');
+}

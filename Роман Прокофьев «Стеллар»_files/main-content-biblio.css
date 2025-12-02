@@ -1,0 +1,425 @@
+
+/*
+адаптавный шаблон
+work - http://jsbin.com/midiyus/edit?html,css,output
+
+*/
+
+.right-up-block {
+  float:right;
+  margin-left:6px;
+}
+.titles-block {
+  float:left;
+}
+
+
+/* text paragraph block */
+.ln-title {
+  margin-top:18px;
+  font-weight: bold;
+  margin-bottom:6px;
+}
+.p-block .ln-text {
+  padding-left:0.3in;
+}
+.ln-text .sign {
+  text-align:right;
+  margin-top:-8px;
+}
+#annotation-unit .ln-text {
+  display:table;
+}
+/* END text paragraph block */
+
+
+/* Rating Block (work, film)
+----------------------------------------------------------------*/
+/* rating block */
+.rating-block {
+  border:1px solid #3178A8;
+  font: 12px Verdana;
+  display:block;
+  position:relative;
+  background-color:#fff;
+  margin-bottom:10px;
+  width:210px;
+}
+.rating-block dl {
+  padding: 2px 5px 4px 5px;
+  -border-bottom: 1px solid #3178A8;
+  margin-bottom: 0px;
+  margin-top: 0;
+}
+.rating-block dt {
+  float: left;
+  clear: left;
+  padding-right: 6px;
+  line-height: 14px !important;
+}
+.rating-block dd {
+  margin: 0 0 0 90px;
+  padding: 0 0 0.5em 0;
+  font: 11px Verdana;
+  margin-left: 124px;
+  line-height: 16px !important;
+  text-align:right;
+}
+.rating-block-title {
+  background-color: #3178A8;
+  font: bold 11px Verdana;
+  color: #fff;
+  text-align: left;
+  height:20px;
+  padding:2px 6px;
+}
+.rating-block-body {
+  padding:4px 15px;
+  max-width:210px;
+  margin:0 auto;
+}
+.rating-block-body p {
+  border-top: 1px solid #3178A8;
+  border-bottom: 0;
+  text-align:center;
+  font-size:11px;
+  padding: 2px;
+}
+
+/* rating block mini */
+.rating-block-mini {
+  border:1px solid #3178A8;
+  font: 12px Verdana;
+  display:block;
+  position:relative;
+  background-color:#fff;
+  margin-bottom:4px;
+}
+.rating-block-mini dl {
+  padding: 2px 5px 4px 5px;
+  -border-bottom: 1px solid #3178A8;
+  margin-bottom: 0px;
+  margin-top: 0;
+}
+.rating-block-mini dt {
+  float: left;
+  clear: left;
+  padding-right: 6px;
+}
+.rating-block-mini dd {
+  margin: 0 0 0 90px;
+  padding: 0 0 0.5em 0;
+  font: 11px Verdana;
+  margin-left: 100px;
+  text-align:right;
+}
+.rating-block-mini-title {
+  background-color: #3178A8;
+  font: bold 11px Verdana;
+  color: #fff;
+  text-align: left;
+  height:20px;
+  padding:2px 6px;
+}
+.rating-block-mini-body {
+  padding:5px 7px 0px 4px;
+  margin:0 auto;
+}
+.rating-block-mini-body p {
+  border-top: 1px solid #3178A8;
+  border-bottom: 0;
+  text-align:center;
+  font-size:11px;
+  padding: 2px;
+}
+
+
+
+
+
+span[itemprop="ratingValue"], span[itemprop="ratingCount"]{
+  font-weight: bold;
+}
+
+#mark_sel {
+  width: 46px;
+  text-align:center;
+  padding-right: 15px;
+  height: 18px;
+  margin-top:-1px;
+  background-repeat:no-repeat; background-position:right; background-origin:padding-box;
+}
+#mark_sel.selector {
+  border:1px solid #3178A8;
+  cursor:pointer;
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAAQCAYAAADwMZRfAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAACjSURBVDhPY/wPBAwUAkaQIUaVC8k25lx7PAMT2bqRNFLPECaOnxQ5iCouYQE54d8PdrhLZhvpMBiHGuN02dlrZxnSV59F0YPhknSgIpBCbGAWUDO6ASB1GIaAXAVSCNKADM6CxICGI7saJo81TEAKQRpgBoFdgMMArC6BmY5sEMhAfABv7MAMAtHYvIHXO8i24tNMtCHEpEKqJDZwLibGNnxqAAxvUAi2BTCLAAAAAElFTkSuQmCC");
+
+}
+#mark_sel.selector_dis {
+  border:1px solid #D8E1E6;
+  cursor:default;
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAAQCAYAAADwMZRfAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAB7SURBVDhPY/wPBAwUAkaQITcfPSfbGHU5SQYmsnUjaRxmhmAE7JcvzxiMtYxxBtXZa2cZeHik4PJYAxakAKQQG0A3AKYGa8BiMwiXASCDcMYOskH4DMBrCEgSZhByGGDzJsF0QsgAgi4hNjUTdAkxBlHFEHBiI8Y2fGoA8Vou36H4EeIAAAAASUVORK5CYII=')
+}
+
+.spec_mark_container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 46px;
+  margin: 2px;
+}
+.spec_mark_container small {
+  text-align: center;
+}
+.spec_mark_selected {
+  background: #D8E1E6;
+}
+.spec_mark_unselected {
+  filter: grayscale(100%);
+}
+.button-click-effect {
+  opacity: 0.5;
+  cursor: wait;
+  transform: scale(0.9);
+  transition: all 0.3s ease;
+}
+/* END rating block */
+
+
+/* BookCase Select block */
+.bookcase-block {
+  float:right;
+  margin-top: -10px;
+
+}
+/* END BookCase Select block */
+
+
+/* cover block */
+.cover-block {
+  float:left;
+  padding:0px 10px 0px 0;
+  -display:none;
+}
+.cover-block IMG {
+  max-width:110px;
+  max-height:166px;
+  padding:2px;
+  border:1px solid #3178A8;
+}
+/* END cover block */
+#bookf {
+  display:table;
+}
+
+
+/* для кнопок чтения и скачки fb2 */
+#bookf a.file,#bookf a.read {
+  padding:5px 10px 0 0px;
+  margin:3px;
+  display:inline-block;
+  width:50px;
+  height:22px;
+  background:url('/img/file_bg.gif') no-repeat;
+  font: bold 9px Verdana, Arial;
+  color:#fff;
+  text-align:center;
+  text-decoration:none;
+}
+#bookf a.read {
+  padding-top:3px;
+  width:145px;
+  height:22px;
+  background:url('/img/read_bg.gif') no-repeat;
+  font: bold 11px Verdana, Arial;
+  text-align:center;
+}
+
+/* translations block */
+.translations-block {
+  display: table;
+  /* margin-top:16px; */
+}
+
+.translations-block dd {
+  margin-left:0.3in;
+}
+.translations-block dd em {
+  font-style: normal;
+  color: gray;
+  white-space: nowrap;
+}
+.translations-block dl dd {
+    margin-left:58px;
+}
+/* END translations block */
+
+
+
+/* classificatory block */
+.classif-block .ln-title {
+  margin-bottom:-4px;
+}
+.workclassif ul {
+  margin-left:32px
+}
+
+.workclassif li em {
+  font-style: normal;
+}
+
+.wg, .wg-sub {
+  display: inline-block;
+  width:12px;
+  height:7px;
+  border:1px solid #3178A8;
+}
+.wg-sub {
+  border-color:#B0C0D0;
+}
+
+.p1 { border-left-width:2px; }
+.p2 { border-left-width:3px; }
+.p3 { border-left-width:4px; }
+.p4 { border-left-width:5px; }
+.p5 { border-left-width:6px; }
+.p6 { border-left-width:7px; }
+.p7 { border-left-width:8px; }
+.p8 { border-left-width:9px; }
+.p9 { border-left-width:10px;}
+.p10{ border-left-width:11px;}
+
+.classif-block__sum {
+  max-width:500px;
+  z-index:10;
+  margin-top:3px;
+  margin-left:10px;
+  border-top:1px dotted #AFB0C0;
+  padding:2px;
+  padding-left:16px;
+}
+
+#genrevote {
+	position:absolute; width:75%; max-width:560px; left:5%;
+}
+
+/* END classificatory block */
+
+
+/* карточка издания */
+.td-block-right {
+  padding-left:15px;
+}
+
+#otherformatbutton a {
+  white-space:nowrap;
+}
+
+.titles-block-center{
+  display:block;
+}
+
+.edition-cover {
+  text-align:right;
+  margin-bottom:0;
+  white-space:nowrap;
+  font-size:0;
+}
+.edition-pics {
+  background-color:#fff;
+  border:1px solid #D8E1E6;
+  margin-top:10px;
+  padding:5px;
+}
+.edition-fragment {
+  text-align:left;
+  background-color:#D8E1E6;
+  margin-top:10px;
+  width:auto;
+  padding:5px;
+}
+.admitad_edition {
+  margin-top:15px;
+}
+.admitad_edition .title {
+  padding: 5px;
+  padding-left: 10px;
+  background:#3178A8;
+  color:white;
+  font-weight: bold;
+}
+.edition-show .flex-wrapper {
+  display: flex;
+}
+.edition-show .flex-wrapper .space-between { /* for /promo */
+  justify-content: space-between;
+}
+.admitad_edition .content-wrapper {
+  padding:10px;
+  border:1px solid #D8E1E6;
+  border-left:2px solid #FF7E00
+}
+.admitad_edition .shops {
+  padding-top:0px;
+  padding-bottom:0px;
+  padding-left:16px;
+  padding-right:0px;
+  margin:0px;
+}
+.shops li {
+  margin-bottom: 0.3em;
+}
+.flex-wrapper.gap-5 {
+  gap: 5px;
+}
+.flex-wrapper.gap-10 {
+  gap: 10px;
+}
+.flex-wrapper.flex-start {
+  align-items: flex-start;
+}
+.flex-wrapper.align-stretch {
+  align-items: stretch;
+}
+.flex-wrapper.flex-grow {
+  flex-grow: 1;
+}
+.column {
+  flex-direction: column;
+}
+.flex-1 {
+  flex: 1;
+}
+
+
+/* END карточка издания */
+
+.clearfixafter:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+.clearfixleft:after {
+  content: "";
+  display: table;
+  clear: left;
+}
+
+/* антиобтекатель */
+.inline-block {
+  display:inline-block;
+}
+
+/* это рисует как-бы иконку треугольника, которую можно вращать туда-сюда */
+.triangle_icon {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 8px solid black;
+  transform: rotate(180deg); /* изначально треугольник смотрит вниз */
+  position: absolute;
+  top: 25%; /* выравниваем по вертикали по центру td */
+  cursor: pointer;
+}
+

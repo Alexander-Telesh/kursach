@@ -1,0 +1,929 @@
+var b_open = 0;
+var i_open = 0;
+var u_open = 0;
+var q_open = 0;
+var p_open = 0;
+var s_open = 0;
+var h_open = 0;
+var cut_open = 0;
+var moder_open = 0;
+var spoiler_open = 0;
+var work_open = 0;
+var work_t_open = 0;
+var autor_open = 0;
+var translator_open = 0;
+var art_open = 0;
+var dictor_open = 0;
+var edition_open = 0;
+var series_open = 0;
+var pub_open = 0;
+var film_open = 0;
+var award_open = 0;
+var user_open = 0;
+var link_open = 0;
+var rkp_open = 0; 
+
+var answerform_loaded = -1;
+
+var myAgent   = navigator.userAgent.toLowerCase();
+var myVersion = parseInt(navigator.appVersion);
+
+var is_ie   = ((myAgent.indexOf("msie") != -1)  && (myAgent.indexOf("opera") == -1));
+var is_opera= (myAgent.indexOf("opera") == -1);
+var is_nav  = ((myAgent.indexOf('mozilla')!=-1) && (myAgent.indexOf('spoofer')==-1)
+                && (myAgent.indexOf('compatible') == -1) && (myAgent.indexOf('opera')==-1)
+                && (myAgent.indexOf('webtv') ==-1)       && (myAgent.indexOf('hotjava')==-1));
+
+var is_win   =  ((myAgent.indexOf("win")!=-1) || (myAgent.indexOf("16bit")!=-1));
+var is_mac    = (myAgent.indexOf("mac")!=-1);
+var is_ios    = ((myAgent.indexOf("ipad")!=-1) || (myAgent.indexOf("iphone")!=-1));
+
+var ua_vers   = parseInt(navigator.appVersion);
+
+var colors = new Array("black","red")
+
+var list_prompt = "Укажите список"
+
+
+
+var selectedRange = null;
+//if((navigator.userAgent.match(/iPhone/i)) || (navigator.userAgent.match(/iPod/i))) {
+if(is_ios==1) {
+//alert('hello');
+  selectedRangeID = setInterval(getSelectedRange, 150);
+}
+
+
+function getSelectedRange() {
+    try {
+	if (window.getSelection) {
+            selectedRange = window.getSelection().toString();
+        } else {
+          if (document.selection) {   // Internet Explorer
+            selectedRange = document.selection.createRange().text;
+          } else {
+            selectedRange = document.getSelection();
+          }
+        }
+    } catch (err) {
+
+    }
+};
+
+function smile(tag, obj) {
+    doInsert(":"+tag+":", "", false,obj);
+}
+
+function username(user) {
+    var obj = false;
+    if (answerform_loaded>-1) {
+        obj = "a_form"+answerform_loaded;
+    }
+    doInsert("[b]"+user+"[/b] ", "", false, obj);
+}
+
+// вставка тэгов с подводкой курсора
+// вместо функции simpetag()
+function inTag(el, tagOn, tagOff, offset) {
+    var val = el.value, endIndex, range, doc = el.ownerDocument;
+
+    if (typeof el.selectionStart == "number"
+            && typeof el.selectionEnd == "number") {
+        startIndex = el.selectionStart;
+        endIndex = el.selectionEnd;
+        // при выделении
+        if (el.selectionStart < el.selectionEnd) { 
+          el.value = (el.value).substring(0, startIndex) + tagOn + (el.value).substring(startIndex, endIndex) + tagOff + (el.value).substring(endIndex, el.textLength);
+          el.selectionStart = el.selectionEnd = (offset ? startIndex+offset : endIndex+tagOn.length+tagOff.length);
+        // на место курсора
+        } else {
+          el.value = val.slice(0, endIndex) + tagOn+tagOff + ' ' + val.slice(endIndex);
+          needMoveCursorToRight = tagOff === '' && el.value[el.value.length - 1] === ' ';
+          el.selectionStart = el.selectionEnd = endIndex + tagOn.length + (needMoveCursorToRight ? 1 : 0);
+        } 
+        el.focus();
+   } 
+}
+
+function simpletag(tag, obj) {
+    var obj_ta = 0;
+    if (obj) {
+        // для формы ответа в блогах (потому что их много)
+        if (obj.indexOf("a_form") > -1) {
+            obj_ta = document.all[obj].message;
+        }
+        else {
+            obj_ta = document.getElementById(obj);
+        }
+    }
+    else {
+        obj_ta = document.addform.message;
+    }
+
+    var tag1 = tag;
+    if (tag1.length > 1 && tag1 != 'moder' && tag1 != 'spoiler' && tag1 != 'list' && tag1 != 'pgs' && tag1 != 'rkp' && tag1 != 'epigraph') {
+        tag1 = tag1 + '=';
+    }
+
+    if (is_ie == 1) {
+        var button = document.all("tag_" + tag);
+        //var button = event.target || event.srcElement;
+        obj_ta.focus();
+        var rng = document.selection.createRange();
+        if (rng.text)
+            if (tag == "work_t") {
+                doInsert("[work_t=]" + rng.text + "[/work]", "", false, obj);
+            }
+            else if (tag == "list") {
+                var txt = "[list]\n[*]" + rng.text + "\n[/list]";
+                txt = txt.replace(/\n/mg, "\n[*]");
+                txt = txt.replace(/(\[\*\])+(\s*\[\*\])/g, "$2");
+                txt = txt.replace(/(\[\*\])+(\s*\[list\])/ig, "$2");
+                txt = txt.replace(/(\[\*\])+(\s*\[\/list\])/ig, "$2");
+                doInsert(txt, "", false, obj);
+            }
+            else if (tag == "epigraph") {
+                doInsert(formatEpigraph(rng.text), "", false, obj);
+            }
+            else if (tag == "pgs") {
+                var txt = pages(rng.text);
+                doInsert(txt, "", false, obj);
+            }
+            else {
+                doInsert("[" + tag1 + "]" + rng.text + "[/" + tag + "]", "", false, obj);
+            }
+        else {
+            if (tag == "list") { listing(obj); return; }
+            else if (tag == "pgs") {
+                var txt = pages(obj_ta.value);
+                obj_ta.value = txt;
+                return;
+            }
+            if (eval(tag + "_open == 0")) {
+                doInsert("[" + tag1 + "]", "", false, obj);
+            }
+            else {
+                if (tag == "work_t") { doInsert("[/work]", "", false, obj); }
+
+                else { doInsert("[/" + tag + "]", "", false, obj); }
+            }
+            eval(tag + "_open = 1-" + tag + "_open");
+            //this.style.color = colors[eval(tag + "_open")];
+        }
+    } else {
+        var button = document.all["tag_" + tag];
+        //var button = event.target || event.srcElement;
+        obj_ta.focus();
+        if (obj_ta.selectionEnd) {
+            var ss = obj_ta.selectionStart;
+            var st = obj_ta.scrollTop;
+            var es = obj_ta.selectionEnd;
+            var start = (obj_ta.value).substring(0, ss);
+            var middle = (obj_ta.value).substring(ss, es);
+            var end = (obj_ta.value).substring(es, obj_ta.textLength);
+
+            var cpos = ss;
+            if (es != ss) {
+                if (tag == "work_t") { obj_ta.value = start + "[work_t=]" + middle + "[/work]" + end; }
+                else if (tag == "list") {
+                    obj_ta.value = start + "[list]\n[*]" + middle.replace(/\n/mg, "\n[*]") + "\n[/list]" + end;
+                    obj_ta.value = obj_ta.value.replace(/(\[\*\])+(\s*\[\*\])/g, "$2");
+                    obj_ta.value = obj_ta.value.replace(/(\[\*\])+(\s*\[list\])/ig, "$2");
+                    obj_ta.value = obj_ta.value.replace(/(\[\*\])+(\s*\[\/list\])/ig, "$2");
+                }
+                else if (tag == "pgs") {
+                    obj_ta.value = start + pages(middle) + end;
+                }
+                else if (tag == "epigraph") {
+                    obj_ta.value = start + formatEpigraph(middle) + end;
+                }
+                else { obj_ta.value = start + "[" + tag1 + "]" + middle + "[/" + tag + "]" + end; }
+                if (tag1.length > 2) {
+                    cpos += tag.length + 2;
+                } else {
+                    cpos += middle.length + 5 + tag.length * 2;
+                }
+            } else {
+                if (tag == "list") { listing(obj); return; }
+                else if (tag == "pgs") {
+                    obj_ta.value = pages(obj_ta.value);
+                    obj_ta.focus();
+                    return;
+                }
+                if (eval(tag + "_open == 0")) {
+                    obj_ta.value = start + "[" + tag1 + "]" + middle + end;
+                    cpos += middle.length + 2 + tag1.length;
+                } else {
+                    if (tag == "work_t") { 
+                        obj_ta.value = start + "[/work]" + middle + end; 
+                        cpos += middle.length + 1 + tag.length;
+                    }
+                    else { 
+                        obj_ta.value = start + "[/" + tag + "]" + middle + end; 
+                        cpos += middle.length + 3 + tag.length;
+                    }
+                }
+                eval(tag + "_open = 1-" + tag + "_open");
+                button.style.color = colors[eval(tag + "_open")];
+            }
+            obj_ta.selectionStart = cpos;
+            obj_ta.selectionEnd = cpos;
+            obj_ta.scrollTop = st;
+        } else {
+            if (tag == "list") { listing(obj); return; }
+            else if (tag == "pgs") {
+                obj_ta.value = pages(obj_ta.value);
+                obj_ta.focus();
+                return;
+            }
+            if (eval(tag + "_open == 0"))
+                doInsert("[" + tag1 + "]", "", false, obj);
+            else {
+                if (tag == "work_t") { doInsert("[/work]", "", false, obj); }
+                else { doInsert("[/" + tag + "]", "", false, obj); }
+            }
+            eval(tag + "_open = 1-" + tag + "_open");
+            button.style.color = colors[eval(tag + "_open")];
+        }
+    }
+    obj_ta.focus();
+}
+
+function formatEpigraph(text) {
+    var result = "";
+    var lines = text.split("\n");
+    for (i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (i === lines.length - 1) {
+            line = "[b]" + line + "[/b]";
+        }
+        result += "[right][i]" + line + "[/i][/right]\n";
+    }
+    return result
+}
+
+function quote(user_name, message_id) {
+    var obj_textarea;
+    if (answerform_loaded > -1) {
+        obj_textarea = document.forms["a_form" + answerform_loaded].elements["message"];
+    } else {
+        if (document.addform) {
+            obj_textarea = document.getElementsByName("message")[0];
+        } else {
+            alert("Для цитирования должна быть открыта форма комментария/ответа.");
+            return;
+        }
+    }
+    var selected_text;
+    var range;
+    if (is_ie == 1) {
+        selected_text = document.selection.createRange().text;
+        range = document.selection.createRange(); // Range для IE
+    } else {
+        selected_text = window.getSelection();
+        range = selected_text.rangeCount > 0 ? selected_text.getRangeAt(0) : null; // Получаем Range из Selection
+    }
+    if (is_ios == 1) {
+        if (selectedRange != null) { // для iOS
+            range = selectedRange; 
+            selected_text = selectedRange.toString(); 
+        }
+    }
+    if (!range || selected_text == '') {
+        alert("Выделите мышью кусок сообщения, который нужно цитировать!");
+        return;
+    }
+    
+    if (is_ie == 1) {
+        var elid = document.selection.createRange().parentElement().id;
+        if (elid.substring(0, 3) == "div" && elid != "div" + message_id) {
+            alert("Выделенный текст не принадлежит данному сообщению!");
+            return;
+        }
+    }
+    // для современных браузеров проверяем, находится ли выделение внутри целевого сообщения
+    else if (message_id && !is_ios) { // только для конкретных сообщений ограничение, текст блога например всегда можно цитировать
+        var parentElement = range.startContainer;
+        while (parentElement && parentElement.nodeType !== 1) { // 1 = ELEMENT_NODE
+            parentElement = parentElement.parentElement;
+        }
+        
+        if (!parentElement) {
+            alert("Ошибка: не удалось определить элемент сообщения!");
+            return;
+        }
+        
+        var targetElement = document.getElementById('trr' + message_id) || document.getElementById('div' + message_id);
+        if (!targetElement || !targetElement.contains(parentElement)) {
+            alert("Выделенный текст не принадлежит данному сообщению!");
+            return;
+        }
+    }
+    var obj = false;
+    if (answerform_loaded > -1) {
+        obj = "a_form" + answerform_loaded;
+    }
+    if (user_name) {
+        doInsert("[q=" + user_name + "]" + selected_text + "[/q]", "", false, obj);
+    } else {
+        doInsert("[q]" + selected_text + "[/q]", "", false, obj);
+    }
+    setTimeout(() => {
+        obj_textarea.focus();
+    }, 0);
+    var messageArea = document.getElementById("newmessage");
+    if (messageArea) {
+        messageArea.scrollIntoView();
+    }
+}
+
+function listing(obj) {
+  var listvalue = "init";
+  var thelist = "";
+  var i = 1;
+  while ( (listvalue != "") && (listvalue != null) )
+  {
+    listvalue = prompt("Введите "+i+"-й элемент списка или оставьте поле пустым для завершения.", "");
+    if ( (listvalue != "") && (listvalue != null) )
+    {
+	thelist = thelist+"[*]"+listvalue+"\n";
+    }
+    i++
+  }
+  if ( thelist != "" )
+  {
+    doInsert( "[LIST]\n" + thelist + "[/LIST]\n", "", false, obj);
+  }
+}
+
+function pages(obj) {
+//	obj = obj.replace(/(\d+.?\d*?)?\s*\n/mg,", стр. $1\n");
+	obj = obj.replace(/(\d+.?\d*?)?\s*$/mgi,", стр. $1");
+	obj = obj.replace(/(, стр.\ *)+/g,", стр. ");
+	obj = obj.replace(/, стр. \n(\s*\[list\])/img,"\n$1");
+	obj = obj.replace(/\[list\], стр. /ig,"[LIST]");
+	obj = obj.replace(/\[\/list\], стр. /ig,"[/LIST]");
+	return obj;
+}
+
+function image(obj) {
+    if (enterURL = prompt("Введите ссылку на картинку", "")) {
+        if (isUrlValid(enterURL)) {
+            doInsert("[IMG]"+enterURL+"[/IMG]", "", false, obj);
+        } else {
+            alert("Невалидный URL!");
+        }
+    } else {
+        alert("Вы не указали ссылку!");
+    }
+}
+
+function video(obj) {
+    if (enterURL = prompt("Введите ссылку на видео (Youtube, Rutube или Yandex.Video)", "")) {
+        if (isUrlValid(enterURL)) {
+            doInsert("[VIDEO="+enterURL+"]", "", false, obj);
+        } else {
+            alert("Невалидный URL!");
+        }
+    } else {
+        alert("Вы не указали ссылку!");
+    }
+}
+
+function url(obj) {
+    var enterURL;
+    var enterTITLE;
+    var text;
+
+    var obj_ta = 0;
+    
+    if (obj) {
+        // для формы ответа в блогах (потому что их много)
+        if (obj.indexOf("a_form") > -1) {
+            obj_ta = document.forms[obj].elements["message"]
+        } else {
+            obj_ta = document.getElementById(obj);
+        }
+    } else {
+        var obj_ta = document.forms["addform"].elements["message"];
+    }
+
+    if (is_ie == 1) {
+        text = document.selection.createRange().text;
+    } else {
+        text = obj_ta.value.substring(obj_ta.selectionStart, obj_ta.selectionEnd);
+//    text = document.getSelection()
+    }
+
+    var texturl;
+    if (text.indexOf("@") > 0) {
+        texturl = 'mailto:'+text
+    } else {
+        texturl = ''
+    }
+    if (enterURL = prompt("Введите адрес страницы", texturl)) {
+        if (isUrlValid(enterURL)) {
+            // удаляем префикс из внутренних ссылок, чтобы делать универсальные ссылки для ru и org версий сайта
+            var domainsToStrip = [
+                "https://fantlab.ru",
+                "https://www.fantlab.ru",
+                "https://fantlab.org",
+                "https://www.fantlab.org"
+            ];
+            for (var i = 0; i < domainsToStrip.length; i++) {
+                var domain = domainsToStrip[i];
+                if (enterURL.indexOf(domain) === 0) {
+                enterURL = enterURL.substring(domain.length);
+                if (enterURL === "") {
+                    enterURL = "/";
+                }
+                break;
+                }
+            }  
+
+            if (enterTITLE = prompt("Введите название страницы", text)) {
+                doInsert("[URL="+enterURL+"]"+enterTITLE+"[/URL]", "", false, obj);
+            } else {
+                alert("Вы не указали название страницы!");
+            }
+        } else {
+            alert("Невалидный URL!");
+        }
+    } else {
+        alert("Вы не указали ссылку!");
+    }
+}
+
+function find_replace(obj) {
+  var enterFind;
+  var enterReplace;
+  var text;
+  var count = 0;
+
+  var obj_ta = 0;
+    if (obj) {
+        // для формы ответа в блогах (потому что их много)
+        if (obj.indexOf("a_form") > -1) {
+            obj_ta = document.getElementsByName("message")[0]; //костыль для блогов переделал так, не совсем понял, как месседжей там может быть много, но так работает и в блогах
+        } else {
+            obj_ta = document.getElementById(obj);
+        }
+    } 
+    else {
+        obj_ta = document.addform.message;
+    }
+
+  if (is_ie == 1) {
+    text = document.selection.createRange().text;
+  } else {
+    text = obj_ta.value.substring(obj_ta.selectionStart, obj_ta.selectionEnd);
+  }
+
+  if (enterFind = prompt("Введите строку, которую нужно заменить", text)) {
+    enterReplace = prompt("Введите строку, которая заменит предыдущую"); 
+    var allText = obj_ta.value;
+    var index = allText.indexOf(enterFind); // Ищем первое вхождение подстроки
+    while (index !== -1) {
+        count++; // Увеличиваем счётчик найденных подстрок
+        allText = allText.slice(0, index) + enterReplace + allText.slice(index + enterFind.length); // Заменяем подстроку
+        index = allText.indexOf(enterFind, index + enterReplace.length); // Ищем следующее вхождение подстроки
+    }
+    obj_ta.value = allText; // Обновляем текст в текстовой области
+  
+    if (count > 0) {
+        alert("Найдено и заменено " + count + " подстрок(и)."); // Выводим сообщение с количеством найденных подстрок
+    } else {
+        alert("Ничего не найдено."); // Выводим сообщение, если ничего не найдено
+    }
+  } 
+  else {
+    alert("Вы не указали строку для поиска!");
+  }
+}
+
+function doInsert(ibTag, ibClsTag, isSingle, obj) {
+	var isClose = false;
+
+    var obj_ta = 0;
+    if (obj) {
+        // для формы ответа в блогах (потому что их много)
+        if (obj.indexOf("a_form") > -1) {
+            obj_ta = document.all[obj].message;
+        }
+        else {
+            obj_ta = document.getElementById(obj);
+        }
+    }
+    else {
+        obj_ta = document.addform.message;
+    }
+
+	obj_ta.focus();
+	//----------------------------------------
+	// It's IE!
+	//----------------------------------------
+	if ( (ua_vers >= 4) && is_ie && is_win)
+	{
+		var sel = document.selection;
+		var rng = sel.createRange();
+		rng.colapse;
+		if((sel.type == "Text" || sel.type == "None") && rng != null)
+		{
+			if(ibClsTag != "" && rng.text.length > 0)
+				ibTag += rng.text + ibClsTag;
+			else if(isSingle)
+				isClose = true;
+			rng.text = ibTag;
+		}
+	}
+
+	//----------------------------------------
+	// It's MOZZY!
+	//----------------------------------------
+
+	else if ( obj_ta.selectionEnd )
+	{
+//	alert(1)
+		var ss = obj_ta.selectionStart;
+		var st = obj_ta.scrollTop;
+		var es = obj_ta.selectionEnd;
+
+		if (es <= 2)
+		{
+			es = obj_ta.textLength;
+		}
+
+		var start  = (obj_ta.value).substring(0, ss);
+		var middle = (obj_ta.value).substring(ss, es);
+		var end    = (obj_ta.value).substring(es, obj_ta.textLength);
+
+		//-----------------------------------
+		// text range?
+		//-----------------------------------
+
+		if (obj_ta.selectionEnd - obj_ta.selectionStart > 0)
+		{
+			//middle = ibTag + middle + ibClsTag;
+			middle = ibTag + ibClsTag;
+		}
+		else
+		{
+			//middle = ibTag + middle;
+			middle = ibTag;
+
+			if (isSingle)
+			{
+				isClose = true;
+			}
+		}
+
+		obj_ta.value = start + middle + end;
+
+		var cpos = ss + (middle.length);
+
+		obj_ta.selectionStart = cpos;
+		obj_ta.selectionEnd   = cpos;
+		obj_ta.scrollTop      = st;
+	}
+	//----------------------------------------
+	// It's CRAPPY!
+	//----------------------------------------
+	else
+	{
+		if (isSingle)
+		{
+			isClose = true;
+		}
+
+		obj_ta.value += ibTag;
+	}
+
+	obj_ta.focus();
+
+	return isClose;
+}
+
+function FlipSmiles(top,left,hide) {
+  var obj = document.all["smiles"];
+  var obj2 = document.all["addsmiles"];
+  if (top>0) { obj.style.top=top-171 }
+  if (left>0) { obj.style.left=left-400 }
+  if (obj.style.display=="block" || hide==1)
+  {
+    //obj2.style.border="1px solid black";
+     obj2.style.color = colors[0];
+    obj.style.display="none";
+  } else
+  {
+    //obj2.style.border="1px solid silver";
+    obj2.style.color = colors[1];
+    obj.style.display="block";
+  }
+}
+
+function LoadAnswerForm(blog_num, b_page_num, article_num, p_article_num, p_message_id, message_id) {
+
+  if (answerform_loaded != message_id)
+  {
+    if (answerform_loaded > -1)
+    {
+        document.all["answerframe"+answerform_loaded].innerHTML="загрузка формы ..."
+        document.all["answerform"+answerform_loaded].style.visibility="hidden";
+    }
+    var req = getXmlHttp();
+    req.open("GET", "/answerform"+message_id+"blog"+blog_num+"page"+b_page_num+"/article"+article_num+"page"+p_article_num+"pm"+p_message_id, false);
+    req.send(null);
+    if (req.readyState == 4) 
+    {
+      if(req.status == 200) { document.all["answerframe"+message_id].innerHTML=req.responseText }
+    }
+    answerform_loaded = message_id;
+  }
+}
+
+
+function CloseAnswerForm() {
+    if (answerform_loaded >-1)
+    {
+        document.all["answerframe"+answerform_loaded].innerHTML="загрузка формы ..."
+        document.all["answerform"+answerform_loaded].style.visibility="hidden";
+    }
+    answerform_loaded = -1;
+}
+
+function HideCommentTree(RootMessageId) {
+    var obj_ct = document.all["commenttree"+RootMessageId];
+    var obj_shn = document.all["showhidenode"+RootMessageId];
+    if (obj_ct.style.visibility=="hidden")
+    {
+        obj_ct.style.visibility="visible";
+        obj_ct.style.position = "relative";
+	obj_ct.style.width="100%";
+	obj_shn.innerHTML="<img src='/img/out.gif' width=7 height=8> свернуть ветку";
+    } else
+    {
+        obj_ct.style.visibility="hidden";
+        obj_ct.style.position = "absolute";
+		obj_ct.style.width="0";
+	obj_shn.innerHTML="<img src='/img/in.gif' width=7 height=8> развернуть ветку";
+    }
+}
+function FullTopicView(Topic_id) {
+	var cnt=1;
+    while(obj_ct = document.all["blog.topic"+Topic_id+".vdiv"+cnt])
+	{
+        obj_ct.style.display = "none";
+		cnt++;
+
+	}
+	cnt=1;
+    while(obj_ct = document.all["blog.topic"+Topic_id+".hdiv"+cnt])
+	{
+        $(obj_ct).slideDown('300');
+		cnt++;
+       
+	}
+}
+
+function BlogPhotoView(Photo,width) {
+    obj_ct = document.all["blog.picture."+Photo];
+    obj_ct.style.visibility="visible";
+    obj_ct.style.position = "relative";
+	obj_ct.style.top="0px";
+    obj_ct.style.width=width+4;
+}
+
+function BlogPhotoHide(Photo) {
+    obj_ct = document.all["blog.picture."+Photo];
+    obj_ct.style.visibility="hide";
+    obj_ct.style.position = "absolute";
+	obj_ct.style.top="-100500px";
+    obj_ct.style.width="0px";
+}
+
+function PostView(Post_id) {
+    document.getElementById('trl'+Post_id).style.display="";
+    document.getElementById('trr'+Post_id).style.display="";
+    document.getElementById('trc'+Post_id).style.display="";
+    document.getElementById('tra'+Post_id).style.display="none";
+    if (document.getElementById('tplus'+Post_id))  { document.getElementById('tplus'+Post_id).style.display="";  }
+    if (document.getElementById('tminus'+Post_id)) { document.getElementById('tminus'+Post_id).style.display=""; }
+    if (document.getElementById('tmoder'+Post_id)) { document.getElementById('tmoder'+Post_id).style.display=""; }
+}
+
+
+function socbutton(u, title, desc, image) {
+    var ua = navigator.userAgent.toLowerCase();
+
+    // обрезаем анонс, если не Firefox и длина больше 220 символов
+    if (ua.indexOf("firefox") < 0 && desc.length >= 220) {
+        b = b.replace(/^(.{150,220})[s,.].+/, "$1...");
+    }
+
+    var encodedTitle = encodeURIComponent(title);
+    var encodedDesc = encodeURIComponent(desc);
+    var encodedImage = encodeURIComponent(image);
+
+    var container = document.getElementById("socbuttons-container");
+    if (!container) return; 
+
+    var vk = document.createElement("div");
+    vk.className = "vkontakte";
+    var vkLink = document.createElement("a");
+    vkLink.href = "https://vk.com/share.php?url=" + u + "&title=" + encodedTitle + "&image=" + encodedImage + "&description=" + encodedDesc;
+    vkLink.target = "_blank";
+    vkLink.title = "ВКонтакте";
+    vkLink.onclick = function () {
+        window.open(this.href, 'Поделиться ссылкой во ВКонтакте', 'width=600,height=300,left=60,top=160');
+        return false;
+    };
+    vk.appendChild(vkLink);
+    container.appendChild(vk);
+
+    var fb = document.createElement("div");
+    fb.className = "facebook";
+    var fbLink = document.createElement("a");
+    fbLink.href = "https://facebook.com/sharer.php?u=" + u + "&t=" + encodedTitle;
+    fbLink.target = "_blank";
+    fbLink.title = "В Facebook";
+    fbLink.onclick = function () {
+        window.open(this.href, 'Поделиться ссылкой в Facebook', 'width=800,height=300,left=60,top=160');
+        return false;
+    };
+    fb.appendChild(fbLink);
+    container.appendChild(fb);
+
+    var tw = document.createElement("div");
+    tw.className = "twitter";
+    var twLink = document.createElement("a");
+    twLink.href = "https://x.com/intent/tweet?text=" + encodedTitle + "&url=" + u;
+    twLink.target = "_blank";
+    twLink.title = "В X";
+    twLink.onclick = function () {
+        window.open(this.href, 'Твитнуть', 'width=600,height=260,left=60,top=160');
+        return false;
+    };
+    tw.appendChild(twLink);
+    container.appendChild(tw);
+}
+
+
+
+var tooltip=function() {
+	var id = 'tt';
+	var top = -70;
+	var left = -306;
+	var maxw = 300;
+	var speed = 20;
+	var timer = 20;
+	var endalpha = 100;
+	var alpha = 0;
+	var tt,t,c,b,h;
+	var ie = document.all ? true : false;
+	return{
+		show:function(v,w){
+			if(tt == null){
+				tt = document.createElement('div');
+				tt.setAttribute('id',id);
+				t = document.createElement('div');
+				t.setAttribute('id',id + 'top');
+				c = document.createElement('div');
+				c.setAttribute('id',id + 'cont');
+				b = document.createElement('div');
+				b.setAttribute('id',id + 'bot');
+				tt.appendChild(t);
+				tt.appendChild(c);
+				tt.appendChild(b);
+				document.body.appendChild(tt);
+				tt.style.opacity = 0;
+				tt.style.filter = 'alpha(opacity=0)';
+				document.onmousemove = this.pos;
+			}
+			tt.style.display = 'block';
+			c.innerHTML = v;
+			tt.style.width = w ? w + 'px' : 'auto';
+			if(!w && ie){
+				t.style.display = 'none';
+				b.style.display = 'none';
+				tt.style.width = tt.offsetWidth;
+				t.style.display = 'block';
+				b.style.display = 'block';
+			}
+			if(tt.offsetWidth > maxw){tt.style.width = maxw + 'px'}
+			h = parseInt(tt.offsetHeight) + top;
+			clearInterval(tt.timer);
+			tt.timer = setInterval(function(){tooltip.fade(1)},timer);
+		},
+		pos:function(e){
+			var u = ie ? event.clientY + document.documentElement.scrollTop : e.pageY;
+			var l = ie ? event.clientX + document.documentElement.scrollLeft : e.pageX;
+			tt.style.top = (u - h) + 'px';
+			tt.style.left = (l + left) + 'px';
+		},
+		fade:function(d){
+			var a = alpha;
+			if((a != endalpha && d == 1) || (a != 0 && d == -1)){
+				var i = speed;
+				if(endalpha - a < speed && d == 1){
+					i = endalpha - a;
+				}else if(alpha < speed && d == -1){
+					i = a;
+				}
+				alpha = a + (i * d);
+				tt.style.opacity = alpha * .01;
+				tt.style.filter = 'alpha(opacity=' + alpha + ')';
+			}else{
+				clearInterval(tt.timer);
+				if(d == -1){tt.style.display = 'none'}
+			}
+		},
+		hide:function(){
+			clearInterval(tt.timer);
+			tt.timer = setInterval(function(){tooltip.fade(-1)},timer);
+		}
+	};
+}();
+
+// https://gist.github.com/dperini/729294
+function isUrlValid(value) {
+    var validator = new RegExp(
+        "^" +
+        // protocol identifier (optional)
+        // short syntax // still required
+        "(?:(?:(?:https?|ftp):)?\\/\\/)" +
+        // user:pass BasicAuth (optional)
+        "(?:\\S+(?::\\S*)?@)?" +
+        "(?:" +
+        // IP address exclusion
+        // private & local networks
+        "(?!(?:10|127)(?:\\.\\d{1,3}){3})" +
+        "(?!(?:169\\.254|192\\.168)(?:\\.\\d{1,3}){2})" +
+        "(?!172\\.(?:1[6-9]|2\\d|3[0-1])(?:\\.\\d{1,3}){2})" +
+        // IP address dotted notation octets
+        // excludes loopback network 0.0.0.0
+        // excludes reserved space >= 224.0.0.0
+        // excludes network & broadcast addresses
+        // (first & last IP address of each class)
+        "(?:[1-9]\\d?|1\\d\\d|2[01]\\d|22[0-3])" +
+        "(?:\\.(?:1?\\d{1,2}|2[0-4]\\d|25[0-5])){2}" +
+        "(?:\\.(?:[1-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-4]))" +
+        "|" +
+        // host & domain names, may end with dot
+        // can be replaced by a shortest alternative
+        // (?![-_])(?:[-\\w\\u00a1-\\uffff]{0,63}[^-_]\\.)+
+        "(?:" +
+        "(?:" +
+        "[a-z0-9\\u00a1-\\uffff]" +
+        "[a-z0-9\\u00a1-\\uffff_-]{0,62}" +
+        ")?" +
+        "[a-z0-9\\u00a1-\\uffff]\\." +
+        ")+" +
+        // TLD identifier name, may end with dot
+        "(?:[a-z\\u00a1-\\uffff]{2,}\\.?)" +
+        ")" +
+        // port number (optional)
+        "(?::\\d{2,5})?" +
+        // resource path (optional)
+        "(?:[/?#]\\S*)?" +
+        "$", "i"
+    );
+    return validator.test(value);
+}
+// Функция сортирует результаты форумных опросов на странице, поддерживает три режима сортировки
+function sortPollResults(mode) {
+    var $table = $('#poll_results');
+    var $firstRow = $table.find("tr:first");
+    var $lastRow = $table.find("tr:last");
+    var $tbody = $table.find('tbody');
+    var $rows = $tbody.find('tr[choices]'); // все строки с вариантами ответов имеют кастомный атрибут choices
+
+    if (mode == 3) {
+        // Сортировка строк на основе количества голосов, по убыванию
+        $rows.sort(function(a, b) {
+            var aValue = parseInt($(a).attr('choices'));
+            var bValue = parseInt($(b).attr('choices'));
+            return bValue - aValue;
+        });
+    } else if (mode == 2) {
+        // Сортировка строк по названиям вариантов ответов
+        $rows.sort(function(a, b) {
+            var textA = $(a).find('td:nth-child(2)').text().trim().toLowerCase();
+            var textB = $(b).find('td:nth-child(2)').text().trim().toLowerCase();
+            return textA.localeCompare(textB);
+        });
+    } else if (mode == 1) {
+        // Сортировка строк по исходному порядку, по возрастанию
+        $rows.sort(function(a, b) {
+            var aValue = parseInt($(a).attr('original'));
+            var bValue = parseInt($(b).attr('original'));
+            return aValue - bValue;
+        });
+    }
+    for (var i = 0; i < $rows.length; i++) {
+        $table.append($rows[i]);
+    }
+
+    // Вставить первую и последнюю строки обратно в таблицу
+    $table.prepend($firstRow);
+    $table.append($lastRow);
+}

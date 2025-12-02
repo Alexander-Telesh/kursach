@@ -272,7 +272,7 @@ class FantLab:
         
         # Если API не доступен, пробуем HTML как fallback
         if not data:
-            url = f"{self.web_url}/work{work_id}"
+            url = f"{self.web_url}/work/{work_id}"
             html = self._get_page_html(url)
             if html:
                 data = self._extract_json_from_html(html)
@@ -385,8 +385,7 @@ class FantLab:
     
     def get_work_reviews(self, work_id: int, page: int = 1, limit: int = 100) -> List[Dict]:
         """
-        Получить отзывы на произведение.
-        Сначала пробует извлечь JSON из HTML, затем парсит структуру HTML.
+        Получить отзывы на произведение из HTML страницы.
         
         Args:
             work_id: ID произведения на FantLab
@@ -396,66 +395,24 @@ class FantLab:
         Returns:
             Список отзывов: id, author_name, text, date, rating, likes_count
         """
-        reviews = []
-        
         # Получаем HTML страницу
-        url = f"{self.web_url}/work{work_id}"
+        url = f"{self.web_url}/work/{work_id}"
         html = self._get_page_html(url)
         
         if not html:
-            return reviews
+            return []
         
-        # Стратегия 1: Пробуем извлечь JSON из HTML (отзывы могут быть встроены)
-        json_data = self._extract_json_from_html(html)
-        if json_data:
-            # Ищем отзывы в извлеченном JSON
-            reviews_data = (
-                json_data.get("reviews") or 
-                json_data.get("responses") or 
-                json_data.get("comments") or
-                json_data.get("work", {}).get("reviews") or
-                json_data.get("work", {}).get("responses") or
-                json_data.get("data", {}).get("reviews") or
-                []
-            )
-            
-            if isinstance(reviews_data, list) and reviews_data:
-                # Обрабатываем отзывы из JSON
-                for item in reviews_data[:limit]:
-                    try:
-                        review = self._parse_review_from_json(item, work_id)
-                        if review:
-                            reviews.append(review)
-                    except Exception:
-                        continue
-                
-                if reviews:
-                    return reviews
-            elif isinstance(reviews_data, dict):
-                # Если reviews_data - словарь, пробуем извлечь список
-                items = (
-                    reviews_data.get("items") or 
-                    reviews_data.get("list") or 
-                    reviews_data.get("data") or
-                    []
-                )
-                if isinstance(items, list) and items:
-                    for item in items[:limit]:
-                        try:
-                            review = self._parse_review_from_json(item, work_id)
-                            if review:
-                                reviews.append(review)
-                        except Exception:
-                            continue
-                    if reviews:
-                        return reviews
-        
-        # Стратегия 2: Если JSON не найден или отзывов нет, парсим HTML структуру
+        # Парсим HTML структуру
         return self._parse_reviews_from_html(html, work_id, limit)
     
     def _parse_reviews_from_html(self, html: str, work_id: int, limit: int = 100) -> List[Dict]:
         """
         Парсинг отзывов из HTML страницы.
+        Алгоритм поиска:
+        1. Ищем контейнер с классом responses-list
+        2. Внутри контейнера ищем все элементы с классом response-item
+        3. Для каждого response-item ищем response-body-home с текстом отзыва
+        4. Извлекаем данные из response-item (автор, дата, оценка, лайки)
         
         Args:
             html: HTML содержимое страницы
@@ -470,68 +427,31 @@ class FantLab:
         try:
             soup = BeautifulSoup(html, 'html.parser')
             
-            # Стратегия 1: Ищем все ссылки на пользователей (авторы отзывов)
-            # Это самый надежный способ найти отзывы
-            user_links = soup.find_all('a', href=re.compile(r'/user/\d+'))
+            # Шаг 1: Ищем контейнер с отзывами (responses-list)
+            reviews_container = soup.find('div', class_=re.compile(r'responses-list', re.I))
             
-            # Для каждой ссылки на пользователя ищем связанный блок отзыва
-            processed_elements = set()
-            for link in user_links:
-                # Пробуем найти родительский блок отзыва на разных уровнях
-                # Сначала ищем ближайший родитель с достаточным количеством текста
-                current = link.parent
-                best_parent = None
-                max_text_length = 0
-                
-                # Поднимаемся по дереву до 5 уровней
-                for level in range(5):
-                    if current is None:
-                        break
-                    text = current.get_text(separator=' ', strip=True)
-                    if len(text) > max_text_length and len(text) > 30:
-                        # Проверяем, что это не навигация
-                        classes = ' '.join(current.get('class', [])).lower()
-                        elem_id = str(current.get('id', '')).lower()
-                        if not any(nav in classes or nav in elem_id 
-                                  for nav in ['nav', 'menu', 'header', 'footer', 'sidebar', 'breadcrumb']):
-                            best_parent = current
-                            max_text_length = len(text)
-                    current = current.parent
-                
-                if best_parent and id(best_parent) not in processed_elements:
-                    processed_elements.add(id(best_parent))
-                    try:
-                        review = self._extract_review_from_element(best_parent, work_id)
-                        if review:
-                            # Проверяем, что это не дубликат
-                            is_duplicate = any(
-                                r.get('author_name') == review.get('author_name') and 
-                                r.get('text', '')[:50] == review.get('text', '')[:50]
-                                for r in reviews
-                            )
-                            if not is_duplicate:
-                                reviews.append(review)
-                    except Exception:
+            if not reviews_container:
+                return reviews
+            
+            # Шаг 2: Ищем все элементы response-item внутри контейнера
+            review_items = reviews_container.find_all('div', class_=re.compile(r'response-item', re.I))
+            
+            # Шаг 3: Для каждого response-item извлекаем данные
+            for item in review_items:
+                try:
+                    # Шаг 3.1: Проверяем наличие response-body-home внутри response-item
+                    review_body = item.find('div', class_=re.compile(r'response-body-home', re.I))
+                    
+                    if not review_body:
+                        # Если response-body-home не найден, пропускаем этот отзыв
                         continue
-            
-            # Стратегия 2: Если не нашли через ссылки, ищем по структуре страницы
-            if not reviews:
-                # Ищем секцию с отзывами по заголовку
-                reviews_header = soup.find(string=re.compile(r'Отзывы читателей|Рецензии|Комментарии|Responses', re.I))
-                if reviews_header:
-                    container = reviews_header.find_parent(['div', 'section', 'article', 'main'])
-                    if container:
-                        # Ищем все блоки внутри контейнера
-                        potential_reviews = container.find_all(['div', 'article', 'li'], recursive=True)
-                        for elem in potential_reviews:
-                            text = elem.get_text(strip=True)
-                            if len(text) > 50 and elem.find('a', href=re.compile(r'/user')):
-                                try:
-                                    review = self._extract_review_from_element(elem, work_id)
-                                    if review:
-                                        reviews.append(review)
-                                except Exception:
-                                    continue
+                    
+                    # Шаг 3.2: Извлекаем данные из response-item
+                    review = self._extract_review_from_element(item, work_id)
+                    if review:
+                        reviews.append(review)
+                except Exception:
+                    continue
             
             # Ограничиваем количество
             reviews = reviews[:limit]
@@ -542,7 +462,7 @@ class FantLab:
             traceback.print_exc()
         
         return reviews
-    
+
     def _parse_review_from_json(self, item: Dict, work_id: int) -> Optional[Dict]:
         """
         Парсинг отзыва из JSON данных.
@@ -620,49 +540,59 @@ class FantLab:
     
     def _extract_review_from_element(self, element, work_id: int) -> Optional[Dict]:
         """
-        Извлечь данные отзыва из HTML элемента.
+        Извлечь данные отзыва из HTML элемента (response-item).
         
         Args:
-            element: BeautifulSoup элемент с отзывом
+            element: BeautifulSoup элемент response-item с отзывом
             work_id: ID произведения
         
         Returns:
             Словарь с данными отзыва или None
         """
         try:
-            # Извлекаем автора (обычно ссылка на пользователя)
-            author_link = element.find('a', href=re.compile(r'/user/\d+'))
+            # Ищем блок с текстом отзыва (response-body-home внутри response-item)
+            review_body = element.find('div', class_=re.compile(r'response-body-home', re.I))
+            
+            if not review_body:
+                return None
+            
+            # Извлекаем текст отзыва из блока
+            # Если это response-body-home, извлекаем текст из всех <p> внутри
+            if review_body.find('p'):
+                paragraphs = review_body.find_all('p')
+                text_parts = [p.get_text(separator=' ', strip=True) for p in paragraphs if p.get_text(strip=True)]
+                text = ' '.join(text_parts)
+            else:
+                text = review_body.get_text(separator=' ', strip=True)
+            
+            # Убираем служебные фразы
+            text = re.sub(r'читать далее|читать полностью|развернуть|свернуть', '', text, flags=re.I)
+            text = self._clean_html_tags(text)
+            text = re.sub(r'\s+', ' ', text).strip()
+            
+            if not text or len(text) < 10:
+                return None
+            
+            # Извлекаем автора (ищем в <b itemprop="author"><a href="/user/...">)
             author_name = "Анонимный читатель"
+            author_elem = element.find('b', attrs={'itemprop': 'author'})
+            if author_elem:
+                author_link = author_elem.find('a', href=re.compile(r'/user/\d+'))
+                if author_link:
+                    author_name = author_link.get_text(strip=True)
             
-            if author_link:
-                author_name = author_link.get_text(strip=True)
-                # Если имя пустое, пробуем из title или извлекаем из href
-                if not author_name:
-                    author_name = author_link.get('title', '')
-                    if not author_name:
-                        # Пробуем найти имя в соседних элементах
-                        parent = author_link.find_parent()
-                        if parent:
-                            # Ищем текст рядом со ссылкой
-                            for sibling in parent.find_all(['span', 'div', 'p']):
-                                text = sibling.get_text(strip=True)
-                                if text and len(text) < 50:  # Имя обычно короткое
-                                    author_name = text
-                                    break
+            # Если не нашли через itemprop, ищем просто ссылку на пользователя
+            if author_name == "Анонимный читатель":
+                author_link = element.find('a', href=re.compile(r'/user/\d+'))
+                if author_link:
+                    author_name = author_link.get_text(strip=True)
             
-            # Получаем весь текст элемента
-            element_text = element.get_text(separator=' ', strip=True)
-            
-            # Извлекаем текст отзыва
-            text = element_text
-            
-            # Убираем автора из начала текста
+            # Убираем автора из начала текста, если он там есть
             if author_name and author_name != "Анонимный читатель":
-                # Убираем имя автора и возможные служебные слова
                 text = re.sub(rf'^{re.escape(author_name)}', '', text, count=1, flags=re.IGNORECASE)
                 text = re.sub(r'^(написал|пишет|сказал|отметил)[:\s]*', '', text, flags=re.IGNORECASE)
             
-            # Убираем дату (разные форматы)
+            # Убираем дату из текста
             date_patterns = [
                 r'\d{1,2}\s+\w+\s+\d{4}',  # "15 января 2024"
                 r'\d{4}-\d{2}-\d{2}',      # "2024-01-15"
@@ -674,53 +604,53 @@ class FantLab:
             # Убираем служебные фразы и теги
             text = re.sub(r'Оценка[:\s]*\d+', '', text, flags=re.IGNORECASE)
             text = re.sub(r'\[.*?\]', '', text)  # BB-теги
-            text = self._clean_html_tags(text)
             text = re.sub(r'\s+', ' ', text).strip()
             
-            # Проверяем, что текст достаточно длинный и не является служебным
-            if not text or len(text) < 20:
+            if not text or len(text) < 10:
                 return None
             
-            # Исключаем служебные тексты
-            if any(skip in text.lower() for skip in ['читать далее', 'читать полностью', 'развернуть', 'свернуть']):
-                return None
-            
-            # Извлекаем дату
+            # Извлекаем дату из <span itemprop="datePublished">
             date_str = None
-            for pattern in date_patterns:
-                date_match = re.search(pattern, element_text)
-                if date_match:
-                    date_str = date_match.group(0)
-                    break
+            date_elem = element.find('span', attrs={'itemprop': 'datePublished'})
+            if date_elem:
+                # Сначала пробуем взять из атрибута content
+                date_str = date_elem.get('content', '')
+                if not date_str:
+                    # Если нет content, берем текст
+                    date_str = date_elem.get_text(strip=True)
             
-            # Извлекаем оценку
+            # Если не нашли через itemprop, ищем по паттернам
+            if not date_str:
+                element_text = element.get_text(separator=' ', strip=True)
+                for pattern in date_patterns:
+                    date_match = re.search(pattern, element_text)
+                    if date_match:
+                        date_str = date_match.group(0)
+                        break
+            
+            # Извлекаем оценку из <div class="response-autor-mark"><b>Оценка: <span>2</span></b></div>
             rating = 0.0
-            rating_match = re.search(r'Оценка[:\s]+(\d+)', element_text, re.I)
-            if rating_match:
-                rating = self._safe_float(rating_match.group(1), 0.0)
-            else:
-                # Пробуем найти число от 1 до 10 в контексте оценки
-                rating_match = re.search(r'(?:оценка|rating|mark|оценил)[:\s]*(\d+)', element_text, re.I)
-                if rating_match:
-                    rating_value = self._safe_float(rating_match.group(1), 0.0)
-                    if 1 <= rating_value <= 10:
-                        rating = rating_value
+            rating_elem = element.find('div', class_=re.compile(r'response-autor-mark', re.I))
+            if rating_elem:
+                rating_span = rating_elem.find('span')
+                if rating_span:
+                    rating_text = rating_span.get_text(strip=True)
+                    # Проверяем, что это не "нет"
+                    if rating_text.lower() not in ['нет', 'no', 'н']:
+                        rating_value = self._safe_float(rating_text, 0.0)
+                        if 1 <= rating_value <= 10:
+                            rating = rating_value
             
-            # Извлекаем количество лайков/плюсов
+            # Извлекаем количество лайков из <span id="r488598"><font color="green">4</font></span>
             likes_count = 0
-            # Ищем паттерны типа "+5", "-2", "5 плюсов", "[+5]", "[-2]" и т.п.
-            likes_patterns = [
-                r'\[?\s*(\+|\-)\s*(\d+)\s*\]?',  # [+5], [-2]
-                r'(\d+)\s*(?:плюс|лайк|like|голос)',  # "5 плюсов"
-                r'(?:плюс|лайк|like)[:\s]*(\d+)',  # "плюс: 5"
-            ]
-            for pattern in likes_patterns:
-                likes_match = re.search(pattern, element_text, re.I)
+            likes_elem = element.find('span', id=re.compile(r'^r\d+$'))
+            if likes_elem:
+                likes_text = likes_elem.get_text(strip=True)
+                likes_match = re.search(r'(\d+)', likes_text)
                 if likes_match:
-                    likes_count = self._safe_int(likes_match.group(2) or likes_match.group(1), 0)
-                    break
+                    likes_count = self._safe_int(likes_match.group(1), 0)
             
-            # Генерируем уникальный ID отзыва
+            # Генерируем ID отзыва
             review_id = f"{work_id}_{abs(hash(author_name + str(date_str) + text[:50]))}"
             
             return {
@@ -733,97 +663,6 @@ class FantLab:
             }
         except Exception as e:
             return None
-        
-        # Обрабатываем разные форматы ответа
-        items = []
-        if isinstance(data, list):
-            items = data
-        elif isinstance(data, dict):
-            # Может быть вложенная структура
-            items = (
-                data.get("reviews") or 
-                data.get("comments") or 
-                data.get("items") or 
-                data.get("data") or 
-                data.get("list") or
-                data.get("work", {}).get("reviews", []) or
-                []
-            )
-            # Если это пагинация
-            if not items and "results" in data:
-                items = data.get("results", [])
-        
-        # Обрабатываем каждый отзыв
-        for item in items:
-            try:
-                # Извлекаем ID отзыва (может быть строкой согласно документации)
-                review_id = str(item.get("id") or item.get("review_id") or item.get("comment_id") or f"{work_id}_{len(reviews)}")
-                
-                # Извлекаем автора
-                author_data = item.get("author") or item.get("user") or item.get("user_name") or {}
-                if isinstance(author_data, dict):
-                    author_name = (
-                        author_data.get("name") or 
-                        author_data.get("username") or 
-                        author_data.get("login") or 
-                        "Анонимный читатель"
-                    )
-                elif isinstance(author_data, str):
-                    author_name = author_data
-                else:
-                    author_name = "Анонимный читатель"
-                
-                # Извлекаем текст отзыва
-                text = (
-                    item.get("text") or 
-                    item.get("content") or 
-                    item.get("review_text") or 
-                    item.get("comment_text") or 
-                    item.get("message") or 
-                    ""
-                )
-                
-                # Извлекаем дату
-                date_str = (
-                    item.get("date") or 
-                    item.get("created_at") or 
-                    item.get("created") or 
-                    item.get("published_at") or 
-                    None
-                )
-                
-                # Извлекаем оценку (может быть строкой)
-                rating = self._safe_float(item.get("rating") or item.get("score") or item.get("mark"), 0.0)
-                
-                # Извлекаем количество лайков (может быть строкой)
-                likes_count = self._safe_int(
-                    item.get("likes") or 
-                    item.get("likes_count") or 
-                    item.get("plus_count") or 
-                    item.get("votes") or
-                    (item.get("likes", {}) if isinstance(item.get("likes"), dict) else {}).get("count") if isinstance(item.get("likes"), dict) else None,
-                    0
-                )
-                
-                # Очищаем текст от HTML и BB-тегов
-                text_cleaned = self._clean_html_tags(str(text))
-                
-                # Добавляем отзыв, если есть текст
-                if text_cleaned and len(text_cleaned.strip()) > 10:
-                    review = {
-                        "id": str(review_id),
-                        "author_name": str(author_name),
-                        "text": text_cleaned.strip(),
-                        "date": str(date_str) if date_str else None,
-                        "rating": rating,
-                        "likes_count": likes_count
-                    }
-                    reviews.append(review)
-            except Exception as e:
-                print(f"   ⚠️  Ошибка обработки отзыва: {e}")
-                continue
-        
-        return reviews
     
     def get_series_info(self, series_id: int) -> Dict:
         """
@@ -841,7 +680,7 @@ class FantLab:
         
         # Если API не доступен, пробуем HTML как fallback
         if not data:
-            url = f"{self.web_url}/work{series_id}"
+            url = f"{self.web_url}/work/{series_id}"
             html = self._get_page_html(url)
             if html:
                 data = self._extract_json_from_html(html)
@@ -996,18 +835,28 @@ def sync_reviews_from_fantlab(book_id: Optional[int] = None, update_ratings_only
                 if annotation:
                     update_data["description"] = annotation
                     update_data["fantlab_annotation"] = annotation
+                else:
+                    # Если аннотации нет, все равно обновляем поле (может быть пустым)
+                    update_data["fantlab_annotation"] = None
                 
-                # Кэшируем метрики FantLab
-                update_data["fantlab_rating"] = work_info.get("rating", 0.0)
+                # Кэшируем метрики FantLab (всегда обновляем, даже если 0 или NULL)
+                update_data["fantlab_rating"] = work_info.get("rating") if work_info.get("rating") else None
                 update_data["fantlab_voters_count"] = work_info.get("voters_count", 0)
                 update_data["fantlab_reviews_count"] = work_info.get("reviews_count", 0)
                 
-                if update_data:
-                    try:
-                        BookRepositorySupabase.update(book_id, update_data)
-                        print(f"   ✅ Обновлены данные книги с FantLab")
-                    except Exception as e:
-                        print(f"   ⚠️  Ошибка при обновлении данных книги: {e}")
+                # Всегда обновляем данные
+                try:
+                    print(f"   🔄 Обновление книги ID {book_id} с данными: {list(update_data.keys())}")
+                    result = BookRepositorySupabase.update(book_id, update_data)
+                    print(f"   ✅ Обновлены данные книги с FantLab:")
+                    print(f"      - Рейтинг: {update_data.get('fantlab_rating')}")
+                    print(f"      - Оценок: {update_data.get('fantlab_voters_count', 0)}")
+                    print(f"      - Отзывов: {update_data.get('fantlab_reviews_count', 0)}")
+                    print(f"      - Аннотация: {'есть' if update_data.get('fantlab_annotation') else 'нет'}")
+                except Exception as e:
+                    print(f"   ❌ Ошибка при обновлении данных книги: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             if not update_ratings_only:
                 # Получаем отзывы на произведение

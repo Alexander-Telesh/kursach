@@ -1,0 +1,29 @@
+$(window).load(function () {
+
+  $('#subseries_search').click(function() {
+    var serie_id = $('input[name=serie_id]').val();
+    $('#subseries_editions').val('... шуршим ...');
+    //TODO: если кто сделает по проще, то вперед ;-)
+    var editions = $('#editions').val().replace(/(\s|)\:\s.*/gi, "");
+    var editions_param = $.trim(editions.split('\n'));
+    editions_param = editions_param.substring(0, editions_param.length - 1);
+    
+    $.ajax({
+      url: '/seriesupdateeditionslist?serie_id=' + serie_id + '&editions=' + editions_param,
+      success: function (json) {
+        if (json.editions.length > 0) {
+          var subseries_editions = '--- Издания подсерий, не найденные в этой серии ---\n';
+          $.each(json.editions, function(k, v) {
+            subseries_editions = subseries_editions + v.edition_id + ' : ' + v.name + ' (' + v.year + ')' + '\n';
+          });
+          $('#subseries_editions').val(subseries_editions);
+        }
+        else {
+          $('#subseries_editions').val('---> новых изданий не найдено \n');
+        }
+      }
+    });
+  });
+
+});
+

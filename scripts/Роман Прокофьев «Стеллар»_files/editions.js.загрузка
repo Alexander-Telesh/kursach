@@ -1,0 +1,591 @@
+// для страницы издания
+var savedContentHtml = null; // здесь будем хранить исходное содержание издания, чтобы вернуть его взад при выключении режима оценивания
+var cachedEditions = null;
+var isMarkMode = false;
+var currentMarks = [];
+// для блоков изданий
+var originalEditionsHtml = null; // переменная для хранения исходной сложной структуры группировки изданий по блокам
+var currentGroups = "default";
+// навешивает события по наведению курсора на мультиобложку, включающие перелистывание этой стопки обложек в multi-cover-container
+function initMultiCoverSlideshows() {
+    $('.multi-cover-container').each(function() {
+        let $container = $(this);
+        let $covers = $container.find('a');
+        let current = 0;
+        let interval;
+
+        function startSlideshow() {
+            interval = setInterval(function() { // обложки сменяются через каждую секунду
+                $covers.css('z-index', 0); // сброс
+                $covers.eq(current).css('z-index', 10); // поднимаем текущий
+                current = (current + 1) % $covers.length;
+            }, 1000);
+        }
+
+        function stopSlideshow() {
+            clearInterval(interval);
+            $covers.each(function(index) {
+                $(this).css('z-index', index); 
+            });
+            current = 0;
+        }
+        // выставить начальный порядок
+        $covers.each(function(index) {
+            $(this).css('z-index', index);
+        });
+
+        $container.hover(startSlideshow, stopSlideshow);
+    });
+}
+// создание новой структуры по переданным перечням блоков и изданий в них
+function createNewGroupsStructure(blocks, editions) {
+    const $container = $(".editions_block");
+    const $newContent = $("<div></div>");
+    blocks.forEach(category => {
+        const count = editions[category].length;
+        const cleanCategory = category.includes('#') ? category.substring(0, category.lastIndexOf('#')) : category; // отрезаем возможные хвосты с айди
+        const $title = $(
+            `<div class="b-titl e-all-titl" style="cursor: pointer; display: block; clear: both;" title="Кликните, чтобы скрыть или показать содержимое блока" onclick="$(this).next().toggleClass('hidden');"><b>${cleanCategory}</b> (${count}):<br><br></div>`
+        );
+        const $body = $('<div class="edition_block_body"></div>');
+        editions[category].forEach($edition => {
+            $body.append($edition);
+        });
+        $newContent.append($title, $body);
+    });
+    $container.html($newContent.html()); 
+}
+// групировка изданий вида mode, функция готовит и сортирует списки для каждой группировки и вызывает createNewGroupsStructure
+function groupEditions(mode, link) {
+    $(".sort-links").removeClass("active");
+    $(link).addClass("active");
+
+    const $container = $(".editions_block");
+    // сохраняем оригинальную группировку, если ранее не была сохранена
+    if (currentGroups === "default" && originalEditionsHtml === null) {
+        originalEditionsHtml = $container.html();
+    }
+
+    if (mode === "default") {
+        // восстановление сохранённой оригинальной структуры
+        if (originalEditionsHtml !== null) {
+            $container.html(originalEditionsHtml);
+        }
+    } else if (mode === "years") {
+        const $allEditions = $container.find(".edition-block-normal").detach();
+        const editionsByYear = {};
+        $allEditions.each(function () {
+            const $edition = $(this);
+            const year = $edition.attr("year") || "Без года";
+            if (!editionsByYear[year]) {
+                editionsByYear[year] = [];
+            }
+            editionsByYear[year].push($edition);
+        });
+        const sortedYears = Object.keys(editionsByYear).sort((a, b) => {
+            const aNum = parseInt(a), bNum = parseInt(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+                return aNum - bNum;
+            }
+            return a.localeCompare(b, 'ru');
+        });
+        createNewGroupsStructure(sortedYears, editionsByYear);
+    } else if (mode === "series") {
+        const $allEditions = $container.find(".edition-block-normal").detach();
+        const editionsBySerie = {};
+        $allEditions.each(function () {
+            const $edition = $(this);
+            const serie = ($edition.attr("series") === "#" ? "Без серии" : $edition.attr("series"));
+            if (!editionsBySerie[serie]) {
+                editionsBySerie[serie] = [];
+            }
+            editionsBySerie[serie].push($edition);
+        });
+        const sortedSeries = Object.keys(editionsBySerie).sort((a, b) => {
+            if (a === "Без серии" && b === "Без серии") return 0;
+            if (a === "Без серии") return 1;
+            if (b === "Без серии") return -1;
+            return a.localeCompare(b, 'ru');
+        });
+        createNewGroupsStructure(sortedSeries, editionsBySerie);
+    } else if (mode === "publisher") {
+        const $allEditions = $container.find(".edition-block-normal").detach();
+        const editionsByPublisher = {};
+        $allEditions.each(function () {
+            const $edition = $(this);
+            const publisher = $edition.attr("publisher") || "Не указано";
+            if (!editionsByPublisher[publisher]) {
+                editionsByPublisher[publisher] = [];
+            }
+            editionsByPublisher[publisher].push($edition);
+        });
+        const sortedPubs = Object.keys(editionsByPublisher).sort((a, b) => {
+            if (a === "Не указано" && b === "Не указано") return 0;
+            if (a === "Не указано") return 1;
+            if (b === "Не указано") return -1;
+            return a.localeCompare(b, 'ru');
+        });
+        createNewGroupsStructure(sortedPubs, editionsByPublisher);
+    } else if (mode === "format") {
+        const $allEditions = $container.find(".edition-block-normal").detach();
+        const editionsByFormat = {};
+        $allEditions.each(function () {
+            const $edition = $(this);
+            const format = $edition.attr("format") || "не указано";
+            if (!editionsByFormat[format]) {
+                editionsByFormat[format] = [];
+            }
+            editionsByFormat[format].push($edition);
+        });
+        const allFormats = ["сверхмалый", "малый", "стандартный", "увеличенный", "крупный", "сверхкрупный", "другой", "не указано"];
+        const sortedFormats = Object.keys(editionsByFormat).sort((a, b) => {
+            const indexA = allFormats.indexOf(a);
+            const indexB = allFormats.indexOf(b);
+            // если оба элемента есть в allFormats, сортируем по их позициям
+            if (indexA !== -1 && indexB !== -1) {
+                return indexA - indexB;
+            }
+            // если только один элемент есть в allFormats, он должен идти первым
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            // если ни одного элемента нет в allFormats, сортируем по алфавиту
+            return a.localeCompare(b, 'ru');
+        });
+        createNewGroupsStructure(sortedFormats, editionsByFormat);
+    }
+    currentGroups = mode;
+    // в конце всегда нужно восстановить ивенты пролистывания мультиобложек
+    initMultiCoverSlideshows();
+    // и сбросить фильтры
+    $("#editions-tabs a").removeClass("current");
+    $("#editions-tabs a[rel='e-all']").addClass("current");
+    $(".b, .b-titl").show();
+}
+
+// создаёт ячейку издания edition в блоке categoryId
+function createEdition(edition, categoryId) {
+    const border = edition.plan_date ? 'gray' 
+        : edition.correct_level == 1 ? 'green' 
+        : edition.correct_level == 0.5 ? 'orange' 
+        : 'red';
+    // id переводчиков может быть несколько через запятую
+    const translatorsList = edition.translators 
+        ? edition.translators
+            .split(',')
+            .map(number => `e-translator${number.trim()}`)
+            .join(' ')
+        : '';
+    const decade = Math.floor(edition.year / 10) * 10;
+    const editionClass = `b edition-block-normal e-all e-${editions_blocks[categoryId].block} e-lang${edition.lang_id} e-decade${decade} e-cover${edition.cover_type} ${translatorsList} edition-${border}`;
+    const editionId = `edition-${edition.edition_id}`;
+    
+    const year_title = edition.year ? `${edition.year} г.` : '';
+    const lang_title = edition.lang_id > 1 ? `<div class="gray">(${edition.lang})</div>` : '';
+    // для аудиоизданий своя заглушка есть
+    const cover_url = (categoryId == 30 && !edition.pic_num) 
+        ? '/images/editions/nocover-audio.jpg' 
+        : `/images/editions/small/${edition.edition_id}`;
+
+    // создаём элемент
+    const $newEdition = $(`
+        <div class="${editionClass}" id="${editionId}" author="${edition.autors}" etitle="${edition.name}" year="${edition.year}">
+            <a href="/edition${edition.edition_id}" title="${edition.name}">
+                <img src="${cover_url}" alt="${edition.name}" width="60" hspace="2">
+            </a><br>
+            <font size="1">${year_title} ${lang_title}</font>
+        </div>
+    `);
+
+    return $newEdition;
+}
+// создаёт не поместившиеся в limit при загрузке страницы издания в нужной категории, доставая их из editions_blocks, вызывается по клику на кнопку element
+function showAdditionalEditions(element, categoryId, limit) {
+    if (editions_blocks && editions_blocks[categoryId]) {
+        const parent = element.parentNode; // родительский элемент скрываемой кнопки раскрытия изданий 
+        element.remove();
+        let list = editions_blocks[categoryId].list;
+        if (limit > 0) {
+            list = list.slice(0, -limit);
+        }
+        // здесь было бы проще инвертировать list и просто создать по порядку, но тогда бы обложки загружались снизу вверх, что немного странно выглядит, поэтому так
+        let previousElement = null;
+        list.forEach(edition => {
+            const newElement = createEdition(edition, categoryId);
+            if (!previousElement) {
+                // первый элемент добавляем в начало
+                $(parent).prepend(newElement);
+            } else {
+                // каждый следующий элемент добавляем после предыдущего
+                $(previousElement).after(newElement);
+            }
+            previousElement = newElement;
+        });
+    }
+}
+// создаёт не поместившиеся издания для нужного фильтра (по переводчикам, языкам)
+function showAdditionalEditionsFilters(filter) {
+    let filterId = "";
+    let filterName = "";
+    // определяем тип фильтра из его названия и id фильтруемого класса объектов
+    if (filter.indexOf("translator") >= 0) {
+        filterName = "translator";
+        const idMatch = filter.match(/translator(\d+)/);
+        filterId = idMatch[1]; 
+    } else if (filter.indexOf("lang") >= 0) {
+        filterName = "lang";
+        const idMatch = filter.match(/lang(\d+)/);
+        filterId = idMatch[1]; 
+    } else if (filter.indexOf("decade") >= 0) {
+        filterName = "decade";
+        const idMatch = filter.match(/decade(\d+)/);
+        filterId = idMatch[1]; 
+    }
+    if (filterId) {
+        // проходимся по всем ключам editions_blocks
+        for (const editionKey in editions_blocks) {
+            if (editions_blocks.hasOwnProperty(editionKey)) {
+                const editionBlock = editions_blocks[editionKey]; 
+                const $blockTitle = $(".e-" + editionBlock.name + "-titl").first();
+                // вложенный массив list для каждого блока
+                let list = editionBlock.list.slice().reverse().filter(item => {
+                    // готовим условие совпадения по фильтру для каждого фильтра отдельно
+                    let isMatch = false;
+                    if (filterName === "translator") {
+                        const translatorsArray = item.translators ? item.translators.split(',').map(t => t.trim()) : [];
+                        if (translatorsArray.includes(filterId)) {
+                            isMatch = true;
+                        }
+                    } else if (filterName === "lang" && item.lang_id === filterId) {
+                        isMatch = true;
+                    } else if (filterName === "decade" && Math.floor(item.year / 10) * 10 == filterId) {
+                        isMatch = true;
+                    }
+                    // создаём издание, если оно подходит по фильтру, но не поместилось в вывод при загрузке страницы
+                    if (isMatch && !$("#edition-" + item.edition_id).length) {
+                        const $newEdition = createEdition(item, editionBlock.id);
+                        $blockTitle.after($newEdition);
+                        return false; // удаляем это издания из массива, т.к. оно уже есть на странице
+                    }
+                    return true; 
+                });
+            }
+        }
+    }
+}
+// функция для включения режима оценивания состава издания, преобразовывает список содержания и добавляет возможность оценивать позиции   
+function showMarkMode() {
+    const content = document.getElementById('content');
+    const table = document.createElement('table');
+    let allMarks = 0;
+    let allMarksSum = 0;
+    table.style.padding = "2px";
+    table.style.width = "100%";
+    // находим и обрабатываем все теги <li> внутри content
+    const allLiElements = content.querySelectorAll('li');
+    allLiElements.forEach(li => {
+        const liContent = li.cloneNode(true);
+        // удаляем подсписки
+        const olElements = liContent.querySelectorAll('ol');
+        olElements.forEach(ol => ol.remove());
+        // удаляем лишние <br> из содержания
+        const brElements = liContent.querySelectorAll('br');
+        brElements.forEach(br => br.remove());
+        let ratingString = "";
+        let respString = "";
+        const markDiv = document.createElement('div');
+        const workLink = liContent.querySelector('a[href^="/work"]');
+        // если строка с активным ворком, то сформируем данные по оценкам и прочей инфе
+        if (workLink) {
+            markDiv.style.position = 'relative';
+            const markInnerDiv = document.createElement('div');
+            markInnerDiv.title = 'Моя оценка';
+            markInnerDiv.className = 'author_mark';
+            markInnerDiv.style.flexShrink = '0';
+            const workId = liContent.querySelector('span[data-fantlab_id]').getAttribute('data-fantlab_id');
+            markInnerDiv.setAttribute('id', `mark-for-work-${workId}`);
+            markInnerDiv.setAttribute('onclick', `selShow(this, ${workId})`);
+            markInnerDiv.setAttribute('onmouseover', 'is_w = true;');
+            markInnerDiv.setAttribute('onmouseout', 'is_w = false;');
+            markInnerDiv.textContent = '-';
+            markDiv.appendChild(markInnerDiv);
+            // получаем из попапов инфу об оценках и отзывах ворка
+            const popup = liContent.querySelector('#popup');
+            if (popup) {
+                const ratingText = popup.querySelector('font[color="#C45E24"]')?.textContent ?? '';
+                const marksText = popup.querySelector('font[size="-2"][color="gray"]')?.textContent ?? '';
+                ratingString += '<span id="rating-for-work-'+workId+'" style="white-space: nowrap;">' + ratingText + ' ' + marksText + '</span>';
+                // подсчёт общего рейтинга среди работ хоть с одной оценкой
+                if (ratingText) {
+                    allMarks++;
+                    allMarksSum += ratingText * 1;
+                }
+                const responsesLink = popup.querySelector('a[href*="responses"]');
+                if (responsesLink) {
+                    respString = '<span id="resp-for-work-' + workId + '" style="color: #00A000; white-space: nowrap;">' + responsesLink.textContent + ' отз.</span>';
+                }
+            }
+        } 
+        // создаём строку и ячейки для таблицы
+        const row = document.createElement('tr');
+        const cellContent = document.createElement('td');
+        cellContent.innerHTML = liContent.innerHTML; 
+        row.appendChild(cellContent);
+        const cellRating = document.createElement('td');
+        cellRating.innerHTML = ratingString; 
+        cellRating.style.textAlign = 'right';
+        cellRating.style.paddingLeft = '5px';
+        row.appendChild(cellRating);
+        const cellMark = document.createElement('td');
+        cellMark.style.textAlign = 'center';
+        cellMark.appendChild(markDiv);
+        row.appendChild(cellMark);
+        const cellResp = document.createElement('td');
+        cellResp.innerHTML = respString; 
+        cellResp.style.textAlign = 'left';
+        row.appendChild(cellResp);
+        table.appendChild(row);
+    });
+    // заменяем старое содержание на таблицу режима оценивания
+    content.innerHTML = '';
+    content.appendChild(table);
+    // вызываем виджет для интерфейса выставления оценок
+    getWidget();
+    const summaryRating = (allMarksSum ? (allMarksSum/allMarks).toFixed(2) : 'нет' )
+    $('#content table').append('<tr>' + '<td style="border-top: 1px dotted black; padding-top: 5px;" colspan="4">Средний рейтинг: ' + summaryRating + '<span id="my-marks-stats"></span></td>' + '</tr>');
+}
+// функция проходится по списку режима оценивания и вычисляет исходя из указаных страниц и оценок, сколько юзер уже прочитал, 
+// а также размечает визуально объём каждого пункта содержания по страницам
+function calculateCompleteStatus(workId){
+    let notRead = 0;
+    let isRead = 0;
+    let pagesSum = 0;
+    let maxPages = 0;
+    let digMarks = 0;
+    let digMarksSum = 0;
+    // если есть необязательный параметр workId, значит пересчёт был запущен после выставления/удаления новой оценки, нужно пересчитать рейтинг этого ворка в вёрсте 
+    // (бутафория, на сервере на самом деле уже отдельно посчиталось, но спрашивать у него каждую чепуху не нужно)
+    // поэтому узнаём прошлую оценку из сохранённого массива, новую из контейнера с оценкой, и для трёх вариантов событий производим действия с рейтингом
+    if (workId) {
+        const foundMarkObj = currentMarks.find(mark => mark.work_id === workId);
+        const oldMark = foundMarkObj?.mark;
+        
+        if (oldMark !== undefined) {
+            const newMark = $('#mark-for-work-' + workId).html().trim();
+            if (foundMarkObj) {
+                foundMarkObj.mark = newMark;
+            }
+            const isOldMarkNumeric = !isNaN(oldMark) && oldMark !== '' && oldMark != 0;
+            const isNewMarkNumeric = !isNaN(newMark) && newMark !== '';
+            const ratingText = $('#rating-for-work-' + workId).text();
+            // функция для парсинга рейтинга
+            function parseCurrentRating(text) {
+                if (!text.trim()) return { average: 0, count: 0 };
+                
+                const regex = /([\d\.]+)\s*\((\d+)\)/;
+                const match = text.match(regex);
+                
+                if (match && match.length === 3) {
+                    return {
+                        average: parseFloat(match[1]),
+                        count: parseInt(match[2])
+                    };
+                }
+                return { average: 0, count: 0 };
+            }
+            // функция форматирования и отображения рейтинга
+            function displayRating(average, count) {
+                if (count === 0) {
+                    $('#rating-for-work-' + workId).text('');
+                } else {
+                    $('#rating-for-work-' + workId).text(average.toFixed(2) + ' (' + count + ')');
+                }
+            }
+            // текущие значения рейтинга
+            const { average: currentAverage, count: currentCount } = parseCurrentRating(ratingText);
+            
+            if (!isOldMarkNumeric && isNewMarkNumeric) {
+                // оценка выставлена (первая или дополнительная)
+                const newNum = parseFloat(newMark);
+                const newCount = currentCount + 1;
+                const newAverage = ((currentAverage * currentCount) + newNum) / newCount;
+                displayRating(newAverage, newCount);
+                
+            } else if (isOldMarkNumeric && !isNewMarkNumeric) {
+                // оценка убрана (последняя или одна из нескольких)
+                const oldNum = parseFloat(oldMark);
+                const newCount = currentCount - 1;
+                if (newCount > 0) {
+                    const newAverage = ((currentAverage * currentCount) - oldNum) / newCount;
+                    displayRating(newAverage, newCount);
+                } else {
+                    displayRating(0, 0); 
+                }
+            } else if (isOldMarkNumeric && isNewMarkNumeric) {
+                // оценка изменена
+                const oldNum = parseFloat(oldMark);
+                const newNum = parseFloat(newMark);
+                const newAverage = ((currentAverage * currentCount) - oldNum + newNum) / currentCount;
+                displayRating(newAverage, currentCount);
+            }
+        }
+    }
+    const contentElement = document.getElementById('content');
+    const listItems = contentElement.getElementsByTagName('tr');
+    // регулярное выражение для поиска подстрок кол-ва страниц вида "стр. X" или "с. X-Y" или аглийских p.
+    const pagePattern = /(стр\.|с\.|p\.)\s*(\d+)(?:[-–—](\d+))?/;
+    for (let i = 0; i < listItems.length; i++) {
+        // находим элемент с оценкой внутри каждой позиции списка содержания
+        const authorMark = listItems[i].querySelector('.author_mark');
+        const liTextContent = listItems[i].innerText.trim();
+        const match = liTextContent.match(pagePattern);
+        const authorMarkContent = (authorMark ? authorMark.innerHTML : '-');
+        // подсчёты для кол-ва цифровых оценок и их среднего
+        if (/^\d+$/.test(authorMarkContent)) {
+            digMarks++;
+            digMarksSum += Number(authorMarkContent);
+        }
+        if (match) { // смотрим только те строки, где есть указание страниц
+            const startPage = parseInt(match[2], 10); 
+            const endPage = match[3] ? parseInt(match[3], 10) : null; // второго числа может не быть у одностраничников
+            let pageCount = 1; 
+            if (endPage !== null) {
+                pageCount = endPage - startPage + 1;
+            }
+            pagesSum += pageCount;
+            if (pageCount > maxPages) {
+                maxPages = pageCount;
+            }
+            // сохраним кол-во страниц в атрибуте ячейки с содержанием
+            const firstCell = listItems[i].cells[0]; 
+            if (firstCell) { 
+                firstCell.dataset.pages = pageCount;
+            }
+            // смотрим, стоит ли оценка этому ворку, из спецотметок считаем за прочитанное только finish
+            if (authorMark) {
+                if (authorMarkContent === '-' || authorMarkContent.indexOf('unfinish') >= 0 || authorMarkContent.indexOf('want') >= 0) {
+                    notRead += pageCount;
+                    firstCell.className = 'partial-bg';
+                } else {
+                    isRead += pageCount;
+                    firstCell.className = 'partial-bg-read';
+                }
+            }
+            // неактивные ворки имеют хотя бы объём в страницах, это у них отобразить нужно
+            else {
+                firstCell.className = 'partial-bg-unactive';
+            }
+        }
+    }
+    // вывод статистики оценок юзера при наличии хоть двух цифровых оценок
+    if (digMarks > 1) {
+        $('#my-marks-stats').html('. Моих оценок: ' + digMarks + ' (средняя: ' + (digMarksSum/digMarks).toFixed(2) + ')');
+    } else {
+        $('#my-marks-stats').html('');
+    }
+    // не нужно выводить процент прочитанного и графики объёмов в сомнительных случаях, когда страницы указаны неверно или ещё что-то явно сбилось в подсчёте
+    // а также для не-зелёных изданий, у них часто инфы нет или ненадёжная она
+    if ($('.main-info-block-detail').first().css('border-right-color') !== 'rgb(0, 128, 0)' || maxPages <= 1 || pagesSum > 3000) {
+        return;
+    }
+    if (notRead || isRead) {
+        const resultElement = document.getElementById('reading-result');
+        // округляем вниз, чтобы при непрочитанном микрорассказе из-за округления не получалось 100% прочитанного
+        const completed = (notRead == 0 ? 100 : Math.floor((isRead / (notRead + isRead)) * 100));
+        if (completed > 0) {
+            let result_str = (completed >= 100 ? '<b>полностью</b>' : '~' + completed + '%');
+            resultElement.innerHTML = '&nbsp;(прочитано: ' + result_str + ')';
+        } else {
+            resultElement.innerHTML = '';
+        }
+    } 
+    // в конце пройдёмся по содержанию и по сохранённым ранее данным закрасим ячейки в зависимости от размера произведения в составе издания
+    contentElement.querySelectorAll('.partial-bg, .partial-bg-read, .partial-bg-unactive').forEach(td => {
+        const pages = td.getAttribute('data-pages');
+        if (pages) {
+            const percent = ((pages / pagesSum) * 100).toFixed(1); // десятой доли процента должно хватить для точности
+            td.style.setProperty('--percent', `${percent}%`);
+        }
+    });
+}
+// функция проверяет текущий режим, запрашивает список оценок юзера для работ в издании, вызывает преобразование в режим оценивания 
+// и проставляет имеющиеся оценки
+function getUsersMarksForEdition(editionId){
+    // если кнопка режима оценивания нажата, то вернём исходный вид содержания издания
+    if ($('#mark-mode-link').hasClass("active")){
+        isMarkMode = false;
+        if (savedContentHtml !== null) {
+            $('#content').html(savedContentHtml);
+        }
+        $('#mark-mode-link').removeClass("active");
+        $('#mark-mode-link').attr('title', 'Включить режим оценивания');
+        $('#reading-result').html('');
+        $('.fantlab').fantlab(); // переопределяем попапы над ссылками ворков
+    //иначе посылаем запрос оценок к изданию
+    } else {
+        isMarkMode = true;
+        let $linkElement = $('#mark-mode-link');
+        $('#mark-mode-link').attr('title', 'Вернуть обычный вид');
+        let $parentOfLink = $linkElement.parent();
+        let originalHTML = $parentOfLink.html();
+        $parentOfLink.html('<img src="/img/loadingmini.gif" alt="Загрузка..." />');
+        $.ajax({
+            url: `/edition${editionId}/getusermarks`,
+            type: 'POST', 
+            success: function(response) {
+                if (response.success) {
+                    savedContentHtml = $('#content').html();
+                    currentMarks = [...response.marks];
+                    showMarkMode();
+                    // отобразим полученные оценки и отзывы
+                    response.marks.forEach(function(mark) {
+                        if (!mark.published) {
+                            const elementSelector = `[id^="mark-for-work-${mark.work_id}"]`;
+                            const $markElements = $(elementSelector);
+                            if ($markElements.length) {
+                                $markElements.each(function() {
+                                    $(this).text('');
+                                    $(this).attr('onclick', '');
+                                    $(this).attr('title', 'Произведение не опубликовано');
+                                    $(this).attr('class', 'author_mark_dis');
+                                    $(this).css('cursor', 'default');
+                                });
+                            }
+                        }
+                        else if (mark.mark != 0) {
+                            const elementSelector = `[id^="mark-for-work-${mark.work_id}"]`; // изредка бывают дубли
+                            const $markElements = $(elementSelector);
+                            if ($markElements.length) {
+                                $markElements.each(function() {
+                                    if (typeof mark.mark === 'number') {
+                                        $(this).text(mark.mark);
+                                    } else {
+                                        $(this).html('<img src="/img/' + mark.mark + '_icon24.png" height="14">');
+                                    }
+                                });
+                            }
+                        }
+                        if (mark.has_response == 1) {
+                            const respSelector = `[id^="resp-for-work-${mark.work_id}"]`;
+                            const $respElements = $(respSelector);
+                            $respElements.css("color", "#804000");
+                        }
+                    });
+                    // запускаем подсчёт прочитанного в издании согласно выставленным оценкам
+                    calculateCompleteStatus();
+                    $parentOfLink.html(originalHTML);
+                    $('#mark-mode-link').addClass("active");
+                } else {
+                    alert("Ошибка, попробуйте ещё раз");
+                }
+            },
+            error: function() {
+                alert("Произошла ошибка при запросе данных. Попробуйте снова.");
+            }
+        });
+        // чистка мусора от попапов, которые могли не успеть скрыться
+        setTimeout(function() {
+            $('[id="popup"]').hide();
+        }, 500); 
+    }
+    
+}

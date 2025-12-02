@@ -1,0 +1,52 @@
+function PlanLangChange(c){
+    $('#rlink').attr("class", 'submenu1');
+    $('#rellink').attr("class", 'submenu1');
+    $('#norlink').attr("class", 'submenu1');
+    $('#relnorlink').attr("class", 'submenu1');
+
+    if(c == 'ru')
+    {
+        document.getElementById('rusplan').style.display='';
+        document.getElementById('norusplan').style.display='none';
+        document.getElementById('released').style.display='none';
+        document.getElementById('releasednor').style.display='none';
+
+        $('#rlink').attr("class", 'submenu1 active');
+
+        document.getElementById('a-pubnews').href='/pubplans';
+    }
+    else if (c == 'noru')
+    {
+        document.getElementById('rusplan').style.display='none';
+        document.getElementById('norusplan').style.display='';
+        document.getElementById('released').style.display='none';
+        document.getElementById('releasednor').style.display='none';
+
+        $('#norlink').attr("class", 'submenu1 active');
+
+        document.getElementById('a-pubnews').href='/pubplans?lang=1';
+    }
+    else if (c == 'rel')
+    {
+        document.getElementById('rusplan').style.display='none';
+        document.getElementById('norusplan').style.display='none';
+        document.getElementById('released').style.display='';
+        document.getElementById('releasednor').style.display='none';
+
+        $('#rellink').attr("class", 'submenu1 active');
+
+        document.getElementById('a-pubnews').href='/pubnews';
+    }
+    else
+    {
+        document.getElementById('rusplan').style.display='none';
+        document.getElementById('norusplan').style.display='none';
+        document.getElementById('released').style.display='none';
+        document.getElementById('releasednor').style.display='';
+
+        $('#relnorlink').attr("class", 'submenu1 active');
+
+        document.getElementById('a-pubnews').href='/pubnews?lang=1';
+    }
+
+}

@@ -1,0 +1,133 @@
+
+window.onerror = function err() {return false;}
+
+function vote(a,b) {
+    if (b == 'minus') { if (!confirm('Внимание!\nМинусом вы можете выражать только своё НЕДОВОЛЬСТВО КАЧЕСТВОМ отзыва, а НЕ ЛИЧНОЕ НЕСОГЛАСИЕ с мнением его автора.')) return false; }
+
+    random_num = (Math.round((Math.random()*Math.random()*10001)+1));
+    var vote_link = "/vote" + a + b + "?" + random_num;
+	$.ajax({
+        url: vote_link,
+        success: function (data) {
+        	if(data.indexOf("=") > 0) {
+        		abc = data.split("=");
+        		document.getElementById(abc[0]).innerHTML = abc[1];
+        		if (abc[1] > 0) {
+        			document.getElementById(abc[0]).style.color="green"
+        		}
+        		else if (abc[1] < 0) {
+        			document.getElementById(abc[0]).style.color="red"
+        		}
+        		else {
+        			document.getElementById(abc[0]).style.color="gray"
+        		}
+        		document.getElementById('plus' + a).style.display="none";
+        		document.getElementById('minus' + a).style.display="none";
+		    } else {
+		    	alert("Ваш голос уже посчитан.");
+		    	document.getElementById('plus' + a).style.display="none";
+		    	document.getElementById('minus' + a).style.display="none";
+		    }
+        }
+    });
+
+	return false;
+}
+
+//Предназначен для блочной верстки - делает visibility:hidden вместо display:none
+function vote_v2(a,b) {
+    function hide_plus_minus (){
+        $("#plus"+a).css("visibility","hidden");
+        $("#minus"+a).css("visibility","hidden");
+    }
+
+    if (b == 'minus') { if (!confirm('Внимание!\nМинусом вы можете выражать только своё НЕДОВОЛЬСТВО КАЧЕСТВОМ отзыва, а НЕ ЛИЧНОЕ НЕСОГЛАСИЕ с мнением его автора.')) return false; }
+    var unique_stamp = new Date().getTime();
+    var vote_link = "/vote" + a + b + "?" + unique_stamp;
+    $.ajax({
+        url: vote_link,
+        success: function (data) {
+            if(data.indexOf("=") > 0) {
+                abc = data.split("=");
+                $("#"+abc[0]).text(abc[1]);
+                var color = "gray";
+                if (abc[1] > 0) {
+                    color = "green";
+                }
+                else if (abc[1] < 0) {
+                    color = "red";
+                }
+                $("#"+abc[0]).css("color",color);
+                hide_plus_minus(a);
+            } else {
+                alert("Ваш голос уже посчитан.");
+                hide_plus_minus(a);
+            }
+        }
+    });
+    return false;
+}
+
+function votepost(a,b) {
+    if (b == 'null') { if (!confirm('Внимание!\nВы действительно хотите обнулить рейтинг поста и запретить в дальнейшем его изменять?')) return false; }
+
+    random_num = (Math.round((Math.random()*Math.random()*10001)+1));
+    var vote_link = "/votepost" + a + b + "?" + random_num;
+	$.ajax({
+        url: vote_link,
+        success: function (data) {
+        	if(data.indexOf("=") > 0) {
+        		abc = data.split("=");
+        		document.getElementById(abc[0]).innerHTML = abc[1];
+        		if (abc[1] > 0) {
+        			document.getElementById(abc[0]).style.color="green"
+        		}
+        		else if (abc[1] < 0) {
+        			document.getElementById(abc[0]).style.color="red"
+        		}
+        		else {
+        			document.getElementById(abc[0]).style.color="gray"
+        		}
+        		document.getElementById('plus' + a).style.display="none";
+        		document.getElementById('minus' + a).style.display="none";
+		    } else {
+		    	alert("Ваш голос уже посчитан.");
+		    	document.getElementById('plus' + a).style.display="none";
+		    	document.getElementById('minus' + a).style.display="none";
+		    }
+        }
+    });
+
+	return false;
+}
+
+function votereg()
+{
+    return confirm("Оценка отзывов доступна только зарегистрированным посетителям. Перейти на страницу регистрации?");
+}
+
+function votereg_v2()
+{
+    if ( confirm("Оценка отзывов доступна только зарегистрированным посетителям. Перейти на страницу регистрации?") ){
+        window.location.href = "/regform";
+    }
+    return false;
+}
+
+function voteown()
+{
+    alert("Вы не можете голосовать за собственный отзыв!");
+    return 0;
+}
+
+function votemin(z, y)
+{
+    alert("Взвешено относитесь к выставлению минусов, ставьте их только в случаях крайне плохих отзывов.\nКроме того, чтобы минусовать чужие отзывы, вам нужно иметь не менее "+y+" баллов за собственные (у вас сейчас: "+z+").");
+    return 0;
+}
+
+function voteminno(l)
+{
+    alert("Уважаемый "+l+"\nВам отказано в возможности минусования отзывов введу чрезмерной любви к этому процессу. Пользуйтесь плюсами - несите позитив.");
+    return 0;
+}
