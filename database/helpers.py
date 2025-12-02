@@ -16,6 +16,11 @@ class Book:
         self.litres_book_id = data.get("litres_book_id") or data.get("external_book_id")  # Обратная совместимость
         self.fantlab_work_id = data.get("fantlab_work_id")
         self.fantlab_series_id = data.get("fantlab_series_id")
+        # Кэшированные данные с FantLab
+        self.fantlab_rating = data.get("fantlab_rating")
+        self.fantlab_voters_count = data.get("fantlab_voters_count", 0)
+        self.fantlab_reviews_count = data.get("fantlab_reviews_count", 0)
+        self.fantlab_annotation = data.get("fantlab_annotation")
         self.created_at = data.get("created_at")
         self.updated_at = data.get("updated_at")
         self._data = data
