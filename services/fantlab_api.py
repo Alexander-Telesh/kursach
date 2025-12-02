@@ -37,7 +37,9 @@ class FantLab:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/json",
             "Accept-Charset": "utf-8",
-            "Content-Type": "application/json; charset=utf-8"
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache"
         }
         
         if self.api_key:
@@ -231,6 +233,10 @@ class FantLab:
                 else:
                     safe_headers[key] = value
             
+            # Добавляем параметр времени для обхода кэша
+            if params is None:
+                params = {}
+            params['_t'] = int(time.time() * 1000)  # Текущее время в миллисекундах
             response = requests.get(url, headers=safe_headers, params=params, timeout=15)
             
             if response.status_code == 200:

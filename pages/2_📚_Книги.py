@@ -84,13 +84,14 @@ else:
             st.caption(f"Порядок в серии: #{selected_book.series_order}")
     
     with col2:
-        # Статистика с FantLab
+        # Статистика с FantLab (всегда получаем свежие данные с API)
         if selected_book.fantlab_work_id:
             try:
                 api = FantLab()
                 work_info = api.get_work_info(selected_book.fantlab_work_id)
                 
                 if "error" not in work_info:
+                    # Получаем свежие данные с FantLab API
                     rating = work_info.get("rating", 0.0)
                     voters_count = work_info.get("voters_count", 0)
                     reviews_count = work_info.get("reviews_count", 0)
@@ -107,8 +108,11 @@ else:
                     
                     st.metric("📝 Количество отзывов", reviews_count)
                 else:
-                    st.info("Данные с FantLab недоступны")
-            except Exception:
+                    # Fallback на данные из базы, если API недоступен
+                    st.metric("⭐ Рейтинг", selected_book.fantlab_rating if selected_book.fantlab_rating else "Нет данных")
+                    st.metric("👥 Количество оценок", selected_book.fantlab_voters_count if selected_book.fantlab_voters_count else 0)
+                    st.metric("📝 Количество отзывов", selected_book.fantlab_reviews_count if selected_book.fantlab_reviews_count else 0)
+            except Exception as e:
                 # Fallback на данные из базы, если FantLab недоступен
                 st.metric("⭐ Рейтинг", selected_book.fantlab_rating if selected_book.fantlab_rating else "Нет данных")
                 st.metric("👥 Количество оценок", selected_book.fantlab_voters_count if selected_book.fantlab_voters_count else 0)
@@ -187,10 +191,41 @@ else:
     if selected_book.fantlab_work_id:
         st.header("📊 Информация с FantLab")
         
+        # Сначала получаем свежие данные с FantLab API для сравнения
+        api = FantLab()
+        fresh_work_info = {}
+        try:
+            fresh_work_info = api.get_work_info(selected_book.fantlab_work_id)
+        except Exception:
+            pass
+        
+        # Проверяем, есть ли изменения на FantLab
+        needs_update = False
+        if "error" not in fresh_work_info:
+            fresh_rating = fresh_work_info.get("rating", 0.0)
+            fresh_voters = fresh_work_info.get("voters_count", 0)
+            fresh_reviews = fresh_work_info.get("reviews_count", 0)
+            
+            cached_rating = selected_book.fantlab_rating
+            cached_voters = selected_book.fantlab_voters_count or 0
+            cached_reviews = selected_book.fantlab_reviews_count or 0
+            
+            # Проверяем изменения
+            if cached_rating is not None and fresh_rating > 0:
+                if abs(cached_rating - fresh_rating) > 0.01:
+                    needs_update = True
+            if cached_voters != fresh_voters:
+                needs_update = True
+            if cached_reviews != fresh_reviews:
+                needs_update = True
+        
         col1, col2 = st.columns([3, 1])
         
         with col1:
-            st.info("💡 Данные обновляются автоматически при загрузке страницы. Нажмите кнопку для принудительного обновления.")
+            if needs_update:
+                st.warning("⚠️ Обнаружены изменения на FantLab! Нажмите кнопку для обновления данных в базе.")
+            else:
+                st.info("💡 Данные обновляются автоматически при загрузке страницы. Нажмите кнопку для принудительного обновления.")
         
         with col2:
             if st.button("🔄 Обновить данные", key=f"update_fantlab_{selected_book.id}", type="primary"):
@@ -201,15 +236,6 @@ else:
                             reviews_count = result.get('reviews', 0)
                             rating = result.get('rating', 0.0)
                             voters_count = result.get('voters_count', 0)
-                            
-                            # Обновляем данные книги в session_state для немедленного отображения
-                            updated_book_data = BookRepositorySupabase.get_by_id(selected_book.id)
-                            if updated_book_data:
-                                # Обновляем selected_book в списке books
-                                for i, book in enumerate(books):
-                                    if book.id == selected_book.id:
-                                        books[i] = dict_to_book(updated_book_data)
-                                        break
                             
                             st.success(f"✅ Данные обновлены в базе!")
                             if rating > 0:
@@ -228,13 +254,15 @@ else:
                         import traceback
                         st.code(traceback.format_exc())
         
-        # Получаем информацию о произведении (всегда получаем свежие данные с FantLab)
+        # Получаем информацию о произведении (используем уже полученные свежие данные или запрашиваем заново)
         try:
-            api = FantLab()
-            work_info = api.get_work_info(selected_book.fantlab_work_id)
+            if not fresh_work_info or "error" in fresh_work_info:
+                work_info = api.get_work_info(selected_book.fantlab_work_id)
+            else:
+                work_info = fresh_work_info
             
             if "error" not in work_info:
-                # Метрики произведения с FantLab
+                # Метрики произведения с FantLab (свежие данные с API)
                 rating = work_info.get("rating", 0.0)
                 voters_count = work_info.get("voters_count", 0)
                 reviews_count = work_info.get("reviews_count", 0)
@@ -247,7 +275,7 @@ else:
                 if author:
                     st.write(f"**Автор:** {author}")
                 
-                # Метрики в колонках
+                # Метрики в колонках (показываем свежие данные с API)
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     if rating > 0:
@@ -262,14 +290,22 @@ else:
                 with col3:
                     st.metric("📝 Количество отзывов", reviews_count)
                 
-                # Показываем разницу с кэшированными данными, если есть
+                # Показываем разницу с кэшированными данными в базе, если есть
                 cached_rating = selected_book.fantlab_rating
-                cached_voters = selected_book.fantlab_voters_count
-                cached_reviews = selected_book.fantlab_reviews_count
+                cached_voters = selected_book.fantlab_voters_count or 0
+                cached_reviews = selected_book.fantlab_reviews_count or 0
                 
-                if (cached_rating is not None and abs(cached_rating - rating) > 0.01) or \
-                   (cached_voters is not None and cached_voters != voters_count) or \
-                   (cached_reviews is not None and cached_reviews != reviews_count):
+                # Проверяем, есть ли изменения (с учетом возможных None значений)
+                has_changes = False
+                if cached_rating is not None and rating > 0:
+                    if abs(cached_rating - rating) > 0.01:
+                        has_changes = True
+                if cached_voters != voters_count:
+                    has_changes = True
+                if cached_reviews != reviews_count:
+                    has_changes = True
+                
+                if has_changes:
                     st.info("💡 Обнаружены изменения на FantLab! Нажмите '🔄 Обновить данные' для сохранения в базу.")
             else:
                 # Если API недоступен, показываем кэшированные данные
