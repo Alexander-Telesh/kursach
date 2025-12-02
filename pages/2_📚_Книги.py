@@ -84,14 +84,37 @@ else:
             st.caption(f"Порядок в серии: #{selected_book.series_order}")
     
     with col2:
-        # Количество комментариев и рецензий
-        comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "comment")
-        reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(selected_book.id, "review")
-        total_likes = ReviewRepositorySupabase.get_total_likes_for_book(selected_book.id)
-        
-        st.metric("Комментариев", len(comments_data))
-        st.metric("Рецензий", len(reviews_data))
-        st.metric("Всего лайков", total_likes)
+        # Статистика с FantLab
+        if selected_book.fantlab_work_id:
+            try:
+                api = FantLab()
+                work_info = api.get_work_info(selected_book.fantlab_work_id)
+                
+                if "error" not in work_info:
+                    rating = work_info.get("rating", 0.0)
+                    voters_count = work_info.get("voters_count", 0)
+                    reviews_count = work_info.get("reviews_count", 0)
+                    
+                    if rating > 0:
+                        st.metric("⭐ Рейтинг", f"{rating:.2f}")
+                    else:
+                        st.metric("⭐ Рейтинг", "Нет данных")
+                    
+                    if voters_count > 0:
+                        st.metric("👥 Количество оценок", voters_count)
+                    else:
+                        st.metric("👥 Количество оценок", "Нет данных")
+                    
+                    st.metric("📝 Количество отзывов", reviews_count)
+                else:
+                    st.info("Данные с FantLab недоступны")
+            except Exception:
+                # Fallback на данные из базы, если FantLab недоступен
+                st.metric("⭐ Рейтинг", selected_book.fantlab_rating if selected_book.fantlab_rating else "Нет данных")
+                st.metric("👥 Количество оценок", selected_book.fantlab_voters_count if selected_book.fantlab_voters_count else 0)
+                st.metric("📝 Количество отзывов", selected_book.fantlab_reviews_count if selected_book.fantlab_reviews_count else 0)
+        else:
+            st.info("fantlab_work_id не установлен")
     
     st.markdown("---")
     

@@ -16,9 +16,15 @@ books = dicts_to_books(books_data)
 st.header("📖 О серии 'Стеллар'")
 
 # Получаем информацию о цикле с FantLab (если есть series_id)
+series_id = None
+series_info = None
+
 if books_data:
-    first_book = books_data[0]
-    series_id = first_book.get("fantlab_series_id")
+    # Ищем series_id во всех книгах
+    for book in books_data:
+        series_id = book.get("fantlab_series_id")
+        if series_id:
+            break
     
     if series_id:
         try:
@@ -35,24 +41,6 @@ if books_data:
                     своим уникальным миром и персонажами. Здесь вы найдете всю информацию о книгах серии, 
                     отзывы читателей и возможность прочитать произведения онлайн.
                     """)
-                
-                # Оценка цикла и статистика
-                series_rating = series_info.get("rating", 0.0)
-                series_reviews_count = series_info.get("reviews_count", 0)
-                
-                if series_rating > 0 or series_reviews_count > 0:
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if series_rating > 0:
-                            st.metric("⭐ Оценка цикла", f"{series_rating:.2f}")
-                        else:
-                            st.metric("⭐ Оценка цикла", "Нет данных")
-                    with col2:
-                        st.metric("📝 Отзывов на цикл", series_reviews_count)
-                    with col3:
-                        works_count = len(series_info.get("works", []))
-                        if works_count > 0:
-                            st.metric("📚 Произведений в цикле", works_count)
             else:
                 st.markdown("""
                 Серия книг "Стеллар" - это увлекательная фантастическая сага, которая захватывает читателей 
@@ -81,46 +69,31 @@ else:
 # Статистика с FantLab
 st.header("📊 Статистика с FantLab")
 
-# Получаем информацию о цикле с FantLab
-# Ищем series_id во всех книгах, а не только в первой
-series_id = None
-if books_data:
-    for book in books_data:
-        series_id = book.get("fantlab_series_id")
-        if series_id:
-            break
+# Используем уже полученную информацию о цикле
+if series_id and series_info and "error" not in series_info:
+    col1, col2, col3 = st.columns(3)
     
-    if series_id:
-        try:
-            api = FantLab()
-            series_info = api.get_series_info(series_id)
-            
-            if "error" not in series_info:
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    series_rating = series_info.get("rating", 0.0)
-                    if series_rating > 0:
-                        st.metric("⭐ Рейтинг цикла", f"{series_rating:.2f}")
-                    else:
-                        st.metric("⭐ Рейтинг цикла", "Нет данных")
-                
-                with col2:
-                    series_reviews_count = series_info.get("reviews_count", 0)
-                    st.metric("📝 Отзывов на цикл", series_reviews_count)
-                
-                with col3:
-                    works_count = len(series_info.get("works", []))
-                    if works_count > 0:
-                        st.metric("📚 Произведений в цикле", works_count)
-                    else:
-                        st.metric("📚 Произведений в цикле", len(books))
-            else:
-                st.warning("Не удалось получить статистику с FantLab. Проверьте настройки series_id.")
-        except Exception as e:
-            st.warning(f"Ошибка при получении статистики с FantLab: {e}")
-    else:
-        st.info("Для отображения статистики с FantLab необходимо установить fantlab_series_id для книг.")
+    with col1:
+        series_rating = series_info.get("rating", 0.0)
+        if series_rating > 0:
+            st.metric("⭐ Рейтинг цикла", f"{series_rating:.2f}")
+        else:
+            st.metric("⭐ Рейтинг цикла", "Нет данных")
+    
+    with col2:
+        series_reviews_count = series_info.get("reviews_count", 0)
+        st.metric("📝 Отзывов на цикл", series_reviews_count)
+    
+    with col3:
+        works_count = len(series_info.get("works", []))
+        if works_count > 0:
+            st.metric("📚 Произведений в цикле", works_count)
+        else:
+            st.metric("📚 Произведений в цикле", len(books) if books else 0)
+elif series_id:
+    st.warning("Не удалось получить статистику с FantLab. Проверьте настройки series_id.")
+elif books_data:
+    st.info("Для отображения статистики с FantLab необходимо установить fantlab_series_id для книг.")
 else:
     st.info("Нет книг в базе данных.")
 
