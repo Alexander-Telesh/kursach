@@ -112,12 +112,23 @@ with col1:
 with col2:
     if st.button("🔄 Обновить отзывы", type="primary"):
         with st.spinner("Обновление отзывов..."):
-            result = sync_reviews_from_fantlab()
-            if result.get("success"):
-                st.success(f"✅ Обновлено {result.get('total_reviews', 0)} отзывов для {result.get('updated_books', 0)} книг")
-                st.rerun()
-            else:
-                st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
+            try:
+                result = sync_reviews_from_fantlab()
+                if result.get("success"):
+                    total_reviews = result.get('total_reviews', 0)
+                    updated_books = result.get('updated_books', 0)
+                    st.success(f"✅ Обновлено {total_reviews} отзывов для {updated_books} книг")
+                    if result.get('series_rating'):
+                        st.info(f"⭐ Оценка цикла: {result.get('series_rating', 0):.2f}")
+                    st.rerun()
+                else:
+                    error_msg = result.get('error', 'Неизвестная ошибка')
+                    st.error(f"❌ Ошибка: {error_msg}")
+                    st.info("💡 Проверьте, что у книг установлены fantlab_work_id и fantlab_series_id")
+            except Exception as e:
+                st.error(f"❌ Критическая ошибка: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
 
 st.markdown("---")
 

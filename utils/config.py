@@ -54,6 +54,8 @@ class ConfigMeta(type):
     def __getattr__(cls, name: str):
         """Динамическая загрузка значений конфигурации."""
         # Маппинг имен на ключи и значения по умолчанию
+        # ВНИМАНИЕ: Не храните реальные учетные данные в коде!
+        # Используйте переменные окружения или Streamlit secrets
         config_map = {
             'SUPABASE_URL': ('SUPABASE_URL', ''),
             'SUPABASE_KEY': ('SUPABASE_KEY', ''),

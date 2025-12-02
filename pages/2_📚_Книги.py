@@ -228,12 +228,24 @@ else:
     with col3:
         if st.button("🔄 Обновить с FantLab", key=f"sync_{selected_book.id}"):
             with st.spinner("Синхронизация с FantLab..."):
-                result = sync_reviews_from_fantlab(book_id=selected_book.id)
-                if result.get("success"):
-                    st.success(f"✅ Обновлено: {result.get('reviews', 0)} отзывов")
-                    st.rerun()
-                else:
-                    st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
+                try:
+                    result = sync_reviews_from_fantlab(book_id=selected_book.id)
+                    if result.get("success"):
+                        reviews_count = result.get('reviews', 0)
+                        rating = result.get('rating', 0.0)
+                        st.success(f"✅ Обновлено: {reviews_count} отзывов")
+                        if rating > 0:
+                            st.info(f"⭐ Оценка: {rating:.2f}")
+                        st.rerun()
+                    else:
+                        error_msg = result.get('error', 'Неизвестная ошибка')
+                        st.error(f"❌ Ошибка: {error_msg}")
+                        if "fantlab_work_id" in error_msg.lower():
+                            st.info("💡 У этой книги не установлен fantlab_work_id. Запустите скрипт миграции.")
+                except Exception as e:
+                    st.error(f"❌ Критическая ошибка: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
     
     # Получаем все данные
     all_comments_data = ReviewRepositorySupabase.get_by_book_id(selected_book.id)
