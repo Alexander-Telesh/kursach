@@ -189,17 +189,29 @@ else:
         
         col1, col2 = st.columns([3, 1])
         
-        with col2:
-            if st.button("🔄 Обновить данные", key=f"update_fantlab_{selected_book.id}"):
-                with st.spinner("Обновление данных..."):
-                    result = sync_reviews_from_fantlab(book_id=selected_book.id)
-                    if result.get("success"):
-                        st.success(f"✅ Обновлено: {result.get('reviews', 0)} отзывов")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
+        with col1:
+            st.info("💡 Данные обновляются автоматически при загрузке страницы. Нажмите кнопку для принудительного обновления.")
         
-        # Получаем информацию о произведении
+        with col2:
+            if st.button("🔄 Обновить данные", key=f"update_fantlab_{selected_book.id}", type="primary"):
+                with st.spinner("Обновление данных с FantLab..."):
+                    try:
+                        result = sync_reviews_from_fantlab(book_id=selected_book.id)
+                        if result.get("success"):
+                            reviews_count = result.get('reviews', 0)
+                            rating = result.get('rating', 0.0)
+                            st.success(f"✅ Данные обновлены!")
+                            if rating > 0:
+                                st.info(f"⭐ Рейтинг: {rating:.2f}")
+                            if reviews_count > 0:
+                                st.info(f"📝 Обновлено отзывов: {reviews_count}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {result.get('error', 'Неизвестная ошибка')}")
+                    except Exception as e:
+                        st.error(f"❌ Ошибка обновления: {e}")
+        
+        # Получаем информацию о произведении (всегда получаем свежие данные с FantLab)
         try:
             api = FantLab()
             work_info = api.get_work_info(selected_book.fantlab_work_id)
@@ -232,8 +244,36 @@ else:
                         st.metric("👥 Количество оценок", "Нет данных")
                 with col3:
                     st.metric("📝 Количество отзывов", reviews_count)
+                
+                # Показываем разницу с кэшированными данными, если есть
+                cached_rating = selected_book.fantlab_rating
+                cached_voters = selected_book.fantlab_voters_count
+                cached_reviews = selected_book.fantlab_reviews_count
+                
+                if (cached_rating is not None and abs(cached_rating - rating) > 0.01) or \
+                   (cached_voters is not None and cached_voters != voters_count) or \
+                   (cached_reviews is not None and cached_reviews != reviews_count):
+                    st.info("💡 Обнаружены изменения на FantLab! Нажмите '🔄 Обновить данные' для сохранения в базу.")
+            else:
+                # Если API недоступен, показываем кэшированные данные
+                st.warning("⚠️ Не удалось получить свежие данные с FantLab. Показаны кэшированные данные.")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("⭐ Рейтинг", selected_book.fantlab_rating if selected_book.fantlab_rating else "Нет данных")
+                with col2:
+                    st.metric("👥 Количество оценок", selected_book.fantlab_voters_count if selected_book.fantlab_voters_count else 0)
+                with col3:
+                    st.metric("📝 Количество отзывов", selected_book.fantlab_reviews_count if selected_book.fantlab_reviews_count else 0)
         except Exception as e:
-            st.info(f"Информация с FantLab временно недоступна: {e}")
+            st.warning(f"⚠️ Ошибка получения данных с FantLab: {e}")
+            # Показываем кэшированные данные
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("⭐ Рейтинг", selected_book.fantlab_rating if selected_book.fantlab_rating else "Нет данных")
+            with col2:
+                st.metric("👥 Количество оценок", selected_book.fantlab_voters_count if selected_book.fantlab_voters_count else 0)
+            with col3:
+                st.metric("📝 Количество отзывов", selected_book.fantlab_reviews_count if selected_book.fantlab_reviews_count else 0)
     
     # Информация о цикле (если есть series_id)
     if selected_book.fantlab_series_id:
