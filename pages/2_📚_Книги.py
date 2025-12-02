@@ -166,16 +166,33 @@ else:
                     with st.expander("📝 Аннотация с FantLab"):
                         st.write(work_info["annotation"])
                 
-                # Оценка произведения
+                # Статистика произведения
                 rating = work_info.get("rating", 0.0)
-                if rating > 0:
-                    st.subheader("⭐ Оценка произведения")
-                    st.metric("Средняя оценка", f"{rating:.2f}")
-                
-                # Количество отзывов
+                voters_count = work_info.get("voters_count", 0)
                 reviews_count = work_info.get("reviews_count", 0)
-                if reviews_count > 0:
-                    st.metric("Количество отзывов", reviews_count)
+                title = work_info.get("title", "")
+                author = work_info.get("author", "")
+                
+                # Основная информация
+                if title:
+                    st.write(f"**Название:** {title}")
+                if author:
+                    st.write(f"**Автор:** {author}")
+                
+                # Метрики в колонках
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if rating > 0:
+                        st.metric("⭐ Оценка", f"{rating:.2f}")
+                    else:
+                        st.metric("⭐ Оценка", "Нет данных")
+                with col2:
+                    if voters_count > 0:
+                        st.metric("👥 Оценок", voters_count)
+                    else:
+                        st.metric("👥 Оценок", "Нет данных")
+                with col3:
+                    st.metric("📝 Отзывов", reviews_count)
         except Exception as e:
             st.info(f"Информация с FantLab временно недоступна: {e}")
     
@@ -189,20 +206,32 @@ else:
                 st.markdown("---")
                 st.header("📚 Информация о цикле")
                 
+                # Название цикла
+                series_title = series_info.get("title", "")
+                if series_title:
+                    st.write(f"**Название цикла:** {series_title}")
+                
                 # Аннотация цикла
                 if series_info.get("annotation"):
                     with st.expander("📝 Аннотация цикла"):
                         st.write(series_info["annotation"])
                 
-                # Оценка цикла
+                # Статистика цикла
                 series_rating = series_info.get("rating", 0.0)
-                if series_rating > 0:
-                    st.metric("⭐ Оценка цикла", f"{series_rating:.2f}")
-                
-                # Количество отзывов на цикл
                 series_reviews_count = series_info.get("reviews_count", 0)
-                if series_reviews_count > 0:
-                    st.metric("Отзывов на цикл", series_reviews_count)
+                works_count = len(series_info.get("works", []))
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if series_rating > 0:
+                        st.metric("⭐ Оценка цикла", f"{series_rating:.2f}")
+                    else:
+                        st.metric("⭐ Оценка цикла", "Нет данных")
+                with col2:
+                    st.metric("📝 Отзывов на цикл", series_reviews_count)
+                with col3:
+                    if works_count > 0:
+                        st.metric("📚 Произведений", works_count)
         except Exception as e:
             pass  # Тихо игнорируем ошибки для цикла
     

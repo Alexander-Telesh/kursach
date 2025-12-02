@@ -36,12 +36,23 @@ if books_data:
                     отзывы читателей и возможность прочитать произведения онлайн.
                     """)
                 
-                # Оценка цикла
+                # Оценка цикла и статистика
                 series_rating = series_info.get("rating", 0.0)
-                if series_rating > 0:
-                    col1, col2 = st.columns([3, 1])
+                series_reviews_count = series_info.get("reviews_count", 0)
+                
+                if series_rating > 0 or series_reviews_count > 0:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if series_rating > 0:
+                            st.metric("⭐ Оценка цикла", f"{series_rating:.2f}")
+                        else:
+                            st.metric("⭐ Оценка цикла", "Нет данных")
                     with col2:
-                        st.metric("⭐ Оценка цикла", f"{series_rating:.2f}")
+                        st.metric("📝 Отзывов на цикл", series_reviews_count)
+                    with col3:
+                        works_count = len(series_info.get("works", []))
+                        if works_count > 0:
+                            st.metric("📚 Произведений в цикле", works_count)
             else:
                 st.markdown("""
                 Серия книг "Стеллар" - это увлекательная фантастическая сага, которая захватывает читателей 
