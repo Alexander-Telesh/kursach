@@ -87,7 +87,6 @@ def test_fantlab_api():
     else:
         print(f"✅ Название: {series_info.get('title', 'N/A')}")
         print(f"✅ Рейтинг: {series_info.get('rating', 0.0):.2f}")
-        print(f"✅ Количество оценок: {work_info.get('voters_count', 0)}")
         print(f"✅ Количество отзывов: {series_info.get('reviews_count', 0)}")
         print(f"✅ Произведений в цикле: {len(series_info.get('works', []))}")
         print(f"✅ Аннотация (первые 100 символов): {series_info.get('annotation', '')[:100]}...")

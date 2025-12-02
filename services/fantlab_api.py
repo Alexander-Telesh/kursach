@@ -981,6 +981,29 @@ def sync_reviews_from_fantlab(book_id: Optional[int] = None, update_ratings_only
             
             if "error" not in work_info:
                 stats["rating"] = work_info.get("rating", 0.0)
+                
+                # Обновляем описание книги аннотацией с FantLab
+                annotation = work_info.get("annotation", "")
+                if annotation:
+                    try:
+                        BookRepositorySupabase.update(book_id, {"description": annotation})
+                        print(f"   ✅ Обновлено описание книги")
+                    except Exception as e:
+                        print(f"   ⚠️  Ошибка при обновлении описания: {e}")
+                
+                # Обновляем название и автора, если они есть в FantLab
+                update_data = {}
+                if work_info.get("title"):
+                    update_data["title"] = work_info.get("title")
+                if work_info.get("author"):
+                    update_data["author"] = work_info.get("author")
+                
+                if update_data:
+                    try:
+                        BookRepositorySupabase.update(book_id, update_data)
+                        print(f"   ✅ Обновлены данные книги: {list(update_data.keys())}")
+                    except Exception as e:
+                        print(f"   ⚠️  Ошибка при обновлении данных книги: {e}")
             
             if not update_ratings_only:
                 # Получаем отзывы на произведение

@@ -78,37 +78,47 @@ else:
     отзывы читателей и возможность прочитать произведения онлайн.
     """)
 
-# Статистика
-st.header("📊 Статистика")
+# Статистика с FantLab
+st.header("📊 Статистика с FantLab")
 
-col1, col2, col3, col4 = st.columns(4)
-
-total_books = len(books)
-
-with col1:
-    st.metric("Количество книг", total_books)
-
-# Подсчитываем статистику по всем книгам
-total_comments = 0
-total_reviews = 0
-total_likes = 0
-
-for book in books_data:
-    book_id = book.get("id")
-    comments_data = ReviewRepositorySupabase.get_by_book_id_and_type(book_id, "comment")
-    reviews_data = ReviewRepositorySupabase.get_by_book_id_and_type(book_id, "review")
-    total_comments += len(comments_data) if comments_data else 0
-    total_reviews += len(reviews_data) if reviews_data else 0
-    total_likes += ReviewRepositorySupabase.get_total_likes_for_book(book_id)
-
-with col2:
-    st.metric("Комментариев", total_comments)
-
-with col3:
-    st.metric("Рецензий", total_reviews)
-
-with col4:
-    st.metric("Всего лайков", total_likes)
+# Получаем информацию о цикле с FantLab
+if books_data:
+    first_book = books_data[0]
+    series_id = first_book.get("fantlab_series_id")
+    
+    if series_id:
+        try:
+            api = FantLab()
+            series_info = api.get_series_info(series_id)
+            
+            if "error" not in series_info:
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    series_rating = series_info.get("rating", 0.0)
+                    if series_rating > 0:
+                        st.metric("⭐ Рейтинг цикла", f"{series_rating:.2f}")
+                    else:
+                        st.metric("⭐ Рейтинг цикла", "Нет данных")
+                
+                with col2:
+                    series_reviews_count = series_info.get("reviews_count", 0)
+                    st.metric("📝 Отзывов на цикл", series_reviews_count)
+                
+                with col3:
+                    works_count = len(series_info.get("works", []))
+                    if works_count > 0:
+                        st.metric("📚 Произведений в цикле", works_count)
+                    else:
+                        st.metric("📚 Произведений в цикле", len(books))
+            else:
+                st.warning("Не удалось получить статистику с FantLab. Проверьте настройки series_id.")
+        except Exception as e:
+            st.warning(f"Ошибка при получении статистики с FantLab: {e}")
+    else:
+        st.info("Для отображения статистики с FantLab необходимо установить fantlab_series_id для книг.")
+else:
+    st.info("Нет книг в базе данных.")
 
 st.markdown("---")
 

@@ -52,12 +52,33 @@ else:
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.subheader(selected_book.title)
-        st.write(f"**Автор:** {selected_book.author}")
+        # Получаем данные с FantLab для отображения
+        book_title = selected_book.title
+        book_author = selected_book.author
+        book_description = selected_book.description
         
-        if selected_book.description:
+        if selected_book.fantlab_work_id:
+            try:
+                api = FantLab()
+                work_info = api.get_work_info(selected_book.fantlab_work_id)
+                
+                if "error" not in work_info:
+                    # Используем данные с FantLab, если они есть
+                    if work_info.get("title"):
+                        book_title = work_info.get("title")
+                    if work_info.get("author"):
+                        book_author = work_info.get("author")
+                    if work_info.get("annotation"):
+                        book_description = work_info.get("annotation")
+            except Exception:
+                pass  # Используем данные из базы, если ошибка
+        
+        st.subheader(book_title)
+        st.write(f"**Автор:** {book_author}")
+        
+        if book_description:
             st.write("**Описание:**")
-            st.write(selected_book.description)
+            st.write(book_description)
         
         if selected_book.series_order:
             st.caption(f"Порядок в серии: #{selected_book.series_order}")
@@ -161,12 +182,7 @@ else:
             work_info = api.get_work_info(selected_book.fantlab_work_id)
             
             if "error" not in work_info:
-                # Аннотация
-                if work_info.get("annotation"):
-                    with st.expander("📝 Аннотация с FantLab"):
-                        st.write(work_info["annotation"])
-                
-                # Статистика произведения
+                # Метрики произведения с FantLab
                 rating = work_info.get("rating", 0.0)
                 voters_count = work_info.get("voters_count", 0)
                 reviews_count = work_info.get("reviews_count", 0)
@@ -183,16 +199,16 @@ else:
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     if rating > 0:
-                        st.metric("⭐ Оценка", f"{rating:.2f}")
+                        st.metric("⭐ Рейтинг", f"{rating:.2f}")
                     else:
-                        st.metric("⭐ Оценка", "Нет данных")
+                        st.metric("⭐ Рейтинг", "Нет данных")
                 with col2:
                     if voters_count > 0:
-                        st.metric("👥 Оценок", voters_count)
+                        st.metric("👥 Количество оценок", voters_count)
                     else:
-                        st.metric("👥 Оценок", "Нет данных")
+                        st.metric("👥 Количество оценок", "Нет данных")
                 with col3:
-                    st.metric("📝 Отзывов", reviews_count)
+                    st.metric("📝 Количество отзывов", reviews_count)
         except Exception as e:
             st.info(f"Информация с FantLab временно недоступна: {e}")
     
